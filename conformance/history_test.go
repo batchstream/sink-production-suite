@@ -186,7 +186,7 @@ func runHistoryCall(ctx context.Context, client *sink.Client, address sink.Addre
 		return result, fmt.Errorf("write: %+v, %v", results, err)
 	}
 	write := results[0]
-	if write.Status == sink.WriteFailed && write.Failure != nil && write.Failure.Code == sink.FailureConflict &&
+	if write.Status == sink.WritePreconditionFailed && write.Failure != nil && write.Failure.Code == sink.FailureConflict &&
 		write.Failure.Retryable && len(write.Revision.Bytes()) == 0 && (entry.Kind == historycheck.Add || entry.Kind == historycheck.Replace) {
 		result.Conflict = true
 		return result, nil

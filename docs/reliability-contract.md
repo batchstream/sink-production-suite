@@ -34,6 +34,7 @@ can resume. Both synchronous and Kafka crash tests use this boundary.
 | [PR 40](https://github.com/liran/sink/pull/40): coalesced byte budgets | Two individually valid Read RPCs each retain their budget; a duplicated result within one RPC is still charged twice, with SDK retries disabled | `TestReadBudgetsBelongToOriginalRPC` |
 | PR 40: formatted JSON damages NDJSON framing | Pretty-printed JSON, escaped newlines, quotes and Unicode persist correctly alongside another bulk item | `TestFormattedJSONBulkFraming` |
 | PR 40: Replace conflict changes existence semantics | A real concurrent revision change is retried; a concurrent delete is not resurrected; an acknowledged sibling is written once | `TestReplaceRechecksExistenceAfterConflict` |
+| Final Replace conflict classification | Three real competing writes exhaust Replace retries; the public result remains an unresolved retryable conflict and preserves the competing value | `TestReplaceConflictExhaustionIsRetryable` |
 | [PR 41](https://github.com/liran/sink/pull/41): completed key held by unrelated read | A subsequent write to an already committed key completes while the original multi-operation RPC remains blocked on another key's read | `TestCompletedDocumentReleasedBeforeSiblingRead` |
 | PR 41: completed RPC held by sibling conflict retry | A real conflicting writer changes the snapshot; successful RPC returns before retry is released, is never replayed, and retry recomputes the new value | `TestSuccessfulSiblingNotReplayedDuringConflict` |
 | PR 41: independent dataset inherits refresh wait | Fast visible dataset is searchable before manually refreshing the slow dataset; slow visible RPC stays pending until refresh | `TestVisibleDatasetsCompleteIndependently` |
@@ -102,6 +103,12 @@ incomplete histories and exhausted search budgets fail closed. Deliberately
 corrupted histories test lost updates, double application, duplicate successful
 creates, stale reads, failed writes changing state and resurrection after Delete;
 legal overlapping histories must pass.
+
+Exhausted revision conflicts use `WritePreconditionFailed` with a retryable
+`FailureConflict` cause and no revision. The history reader distinguishes this
+unresolved outcome from a non-retryable `FailurePreconditionFailed` condition
+mismatch. A deterministic test invalidates all three Replace snapshots through
+real backend writes, keeping the addressed record present throughout.
 
 The live workload checks ten-call histories from three clients and two server
 processes, with default batches and batches restricted to one operation, on
