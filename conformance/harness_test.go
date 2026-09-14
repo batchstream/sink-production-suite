@@ -50,18 +50,20 @@ func searchBackends(t *testing.T) []backend {
 }
 
 type serverOptions struct {
-	backend        backend
-	batchOps       int
-	batchWait      int
-	readBytes      int
-	worker         bool
-	broker         string
-	topic          string
-	capacity       int
-	queued         int
-	maxOps         int
-	secondary      *backend
-	requestTimeout int
+	backend         backend
+	batchOps        int
+	batchWait       int
+	readBytes       int
+	worker          bool
+	broker          string
+	topic           string
+	capacity        int
+	queued          int
+	maxOps          int
+	secondary       *backend
+	requestTimeout  int
+	luaInstructions int
+	endpoints       []string
 }
 
 type candidate struct {
@@ -94,6 +96,14 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	if opts.worker {
 		mode = "worker"
 	}
+	endpoints := opts.endpoints
+	if len(endpoints) == 0 {
+		endpoints = []string{opts.backend.endpoint}
+	}
+	encodedEndpoints, err := json.Marshal(endpoints)
+	if err != nil {
+		t.Fatal(err)
+	}
 	config := fmt.Sprintf(`mode: %s
 grpc:
   address: %q
@@ -103,7 +113,7 @@ storages:
   - name: primary
     driver: %s
     search:
-      endpoints: [%q]
+      endpoints: %s
 %s
 %s
 service:
@@ -113,14 +123,16 @@ service:
   max_merge_attempts: 50
   max_in_flight_requests: %d
   max_store_requests: %d
+  lua:
+    max_instructions: %d
   batching:
     max_operations: %d
     max_wait_milliseconds: %d
     max_queued_operations: %d
 shutdown_timeout_seconds: 2
-`, mode, grpcAddress, metricsAddress, opts.backend.driver, opts.backend.endpoint,
+`, mode, grpcAddress, metricsAddress, opts.backend.driver, encodedEndpoints,
 		candidateKafkaConfig(opts), candidateSecondaryConfig(opts), defaultInt(opts.requestTimeout, 20), defaultInt(opts.readBytes, 32<<20), defaultInt(opts.maxOps, 1000),
-		defaultInt(opts.capacity*2, 128), defaultInt(opts.capacity, 32),
+		defaultInt(opts.capacity*2, 128), defaultInt(opts.capacity, 32), defaultInt(opts.luaInstructions, 1000000),
 		defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
 	configPath := filepath.Join(dir, "server.yaml")
 	if err := os.WriteFile(filepath.Join(dir, "test-name.txt"), []byte(t.Name()), 0600); err != nil {

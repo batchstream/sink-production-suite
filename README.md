@@ -101,6 +101,21 @@ The standalone script prints its local evidence directory even on failure.
 The two-hour run is separate from the release gate; a passing short run does not
 imply a completed long run or multi-node production certification.
 
+## Changes since v0.12.1
+
+The [post-release coverage matrix](docs/post-release-review-2026-09-14.md) maps
+all changes through the September 14 candidate to required regression evidence.
+Production and sustained qualification now run the candidate's complete ordinary
+race suite, real MongoDB/Elasticsearch/OpenSearch storage suites and bounded
+service integration in addition to the public API suite. Named test events reject
+missing or skipped regressions. New public scenarios verify Lua budget isolation,
+managed query safety/failover, lookahead byte budgets and BSON fidelity through
+returned writes, Kafka and a second server. Historical broken candidates must
+fail at the corresponding assertions.
+
+`SINK_SERVER_DIR=/path/to/sink make test-candidate` runs the candidate race gate
+without Docker. Ordinary `go test ./...` remains independent of infrastructure.
+
 ## Infrastructure
 
 Docker Compose starts all disposable dependencies on the runner:

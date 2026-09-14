@@ -42,6 +42,10 @@ go -C "${SINK_SERVER_DIR}" build -race -o "${SINK_SERVER_BINARY}" ./cmd/sink
 "${compose[@]}" up --detach --wait --wait-timeout 180 elasticsearch opensearch
 export SINK_CONFORMANCE_ELASTICSEARCH="http://$("${compose[@]}" port elasticsearch 9200)"
 export SINK_CONFORMANCE_OPENSEARCH="http://$("${compose[@]}" port opensearch 9200)"
+SINK_CANDIDATE_ARTIFACTS="${SINK_CONFORMANCE_ARTIFACTS}" SINK_SEARCH_TEST_ENDPOINT="${SINK_CONFORMANCE_ELASTICSEARCH}" \
+  bash "${suite_dir}/scripts/test-candidate.sh" elasticsearch
+SINK_CANDIDATE_ARTIFACTS="${SINK_CONFORMANCE_ARTIFACTS}" SINK_SEARCH_TEST_ENDPOINT="${SINK_CONFORMANCE_OPENSEARCH}" \
+  bash "${suite_dir}/scripts/test-candidate.sh" opensearch
 cd "${suite_dir}"
 suite_go_flags=(-mod=readonly)
 if [[ -n "${SINK_GO_DIR:-}" ]]; then
@@ -66,6 +70,16 @@ required_tests+=',TestReturnedChainReleasesIndependentPut'
 required_tests+=',TestReplaceConflictExhaustionIsRetryable'
 required_tests+=',TestRequestGateDiscardPreventsLateForwarding'
 required_tests+=',TestPublishingSurvivesSynchronousSaturation,TestSynchronousWritesSurvivePublisherSaturation,TestSynchronousMergesStreamLargeWorkingSets'
+required_tests+=',TestLuaBudgetFailuresPreserveStateAndSiblings,TestManagedQueriesCannotMutateDocuments,TestManagedQueryEndpointRecovery,TestQueryLookaheadDoesNotConsumeDocumentBudget'
+for backend in elasticsearch opensearch; do
+  for operation in insert remove sort unpack move concat pack packsize string-unpack pattern unicode cumulative-helper; do
+    required_tests+=",TestLuaBudgetFailuresPreserveStateAndSiblings/${backend}/${operation}"
+  done
+  for method in Query Count Scan; do
+    required_tests+=",TestManagedQueriesCannotMutateDocuments/${backend}/${method},TestManagedQueryEndpointRecovery/${backend}/${method}"
+  done
+  required_tests+=",TestManagedQueryEndpointRecovery/${backend}/Execute,TestQueryLookaheadDoesNotConsumeDocumentBudget/${backend}"
+done
 go run ./cmd/check-test-events --file "${SINK_CONFORMANCE_ARTIFACTS}/tests.jsonl" --require "${required_tests}"
 if [[ "${SINK_PROVE_REGRESSIONS:-0}" == 1 ]]; then
   bash scripts/check-regression-sensitivity.sh

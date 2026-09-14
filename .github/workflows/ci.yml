@@ -103,6 +103,7 @@ jobs:
           path: |
             ${{ runner.temp }}/sink-qualification.*
             ${{ runner.temp }}/sink-conformance.*
+            ${{ runner.temp }}/sink-candidate.*
           retention-days: 14
 
   sensitivity:
