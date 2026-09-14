@@ -86,7 +86,8 @@ func TestManagedQueriesCannotMutateDocuments(t *testing.T) {
 	for _, store := range searchBackends(t) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
-			opts := serverOptions{backend: store}
+			proxy := proxyBackend(t, store)
+			opts := serverOptions{backend: proxy.backend}
 			server := startCandidate(t, opts)
 			address := addressFor(t, index, "_search")
 			seed := put(t, address, `{"counter":0}`, sink.WriteCreate)
@@ -101,6 +102,17 @@ func TestManagedQueriesCannotMutateDocuments(t *testing.T) {
 			for _, method := range []string{"Query", "Count", "Scan"} {
 				t.Run(method, func(t *testing.T) {
 					count, err := managedCall(t.Context(), server.client, command, method)
+					proxy.mu.Lock()
+					forwarded := 0
+					for _, observed := range proxy.requests {
+						if observed.Phase == "" && strings.Split(observed.Path, "?")[0] == call.path {
+							forwarded++
+						}
+					}
+					proxy.mu.Unlock()
+					if forwarded != 0 {
+						t.Errorf("managed query forwarded mutation endpoint to storage: %d requests", forwarded)
+					}
 					if status.Code(err) != codes.InvalidArgument || count != 0 {
 						t.Errorf("managed query accepted mutation endpoint: %v", err)
 					}

@@ -42,5 +42,5 @@ prove_regression before-publish-isolation 33f8d6fd28f95100c33664dabc512f163d7798
 prove_regression before-streaming-working-set 026d1d16840f7cd17778f528807a1f0a32e9e378 TestSynchronousMergesStreamLargeWorkingSets/elasticsearch/snapshots 'large working set did not stream'
 
 prove_regression before-cumulative-lua-budget a03378982c682fee15fa49c42727e09937153a23 TestLuaBudgetFailuresPreserveStateAndSiblings/elasticsearch/cumulative-helper 'Lua native work escaped its instruction budget'
-prove_regression before-managed-query-paths c38f0dba100c12f222b5141567620588005e8b25 TestManagedQueriesCannotMutateDocuments/elasticsearch/Query 'managed query mutated the search-named record'
+prove_regression before-managed-query-paths c38f0dba100c12f222b5141567620588005e8b25 TestManagedQueriesCannotMutateDocuments/elasticsearch/Query 'managed query forwarded mutation endpoint to storage'
 prove_regression before-managed-query-failover 5c208642aea2fa6674f508270afd79eeb0046540 TestManagedQueryEndpointRecovery/elasticsearch/Query 'managed read failed to recover through healthy endpoint'

@@ -46,8 +46,9 @@ Three additional historical proofs require specific assertion failures:
 
 - `a03378982c682fee15fa49c42727e09937153a23`: cumulative Lua helper calls escape
   the configured instruction budget.
-- `c38f0dba100c12f222b5141567620588005e8b25`: managed Query overwrites the document
-  whose ID is `_search` through a mutation endpoint.
+- `c38f0dba100c12f222b5141567620588005e8b25`: managed Query forwards a mutation endpoint
+  to storage instead of rejecting it before execution. The backend can reject
+  managed-only query parameters; a backend error is not local route validation.
 - `5c208642aea2fa6674f508270afd79eeb0046540`: managed Query fails instead of
   recovering through the healthy endpoint.
 
