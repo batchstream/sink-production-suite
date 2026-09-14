@@ -2,6 +2,7 @@ package conformance_test
 
 import (
 	"fmt"
+	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
@@ -77,5 +78,30 @@ func TestParseMetricsRetainsResourceValuesAndRejectsInvalidSamples(t *testing.T)
 	invalid := []byte("sink_in_flight_requests broken\n")
 	if _, err := parseMetrics(invalid); err == nil {
 		t.Fatal("invalid sample was accepted")
+	}
+}
+
+func TestMetricTotalScriptSumsStoresWithoutCountingOtherMetrics(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"legacy", "sink_merge_conflicts_total 7\n", "7\n"},
+		{"stores", "sink_merge_conflicts_total{store=\"primary\"} 2\nsink_merge_conflicts_total{store=\"secondary\"} 3\n", "5\n"},
+		{"no observations", "# HELP sink_merge_conflicts_total Revision conflicts\nsink_grpc_server_requests_total{method=\"Write\",store=\"primary\"} 2\n", "0\n"},
+		{"other metric", "sink_merge_conflicts_total_extra 99\nsink_merge_conflicts_total_created{store=\"primary\"} 99\nsink_merge_exhausted_total{store=\"primary\"} 99\nsink_merge_conflicts_total{store=\"primary\"} 1\n", "1\n"},
+		{"scientific notation", "sink_merge_conflicts_total{store=\"primary\"} 1e3\n", "1000\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := []string{"-v", "metric_name=sink_merge_conflicts_total", "-f", "../scripts/metric-total.awk"}
+			command := exec.CommandContext(t.Context(), "awk", args...)
+			command.Stdin = strings.NewReader(tc.body)
+			output, err := command.CombinedOutput()
+			if err != nil || string(output) != tc.want {
+				t.Fatalf("metric total = %q, want %q, error = %v", output, tc.want, err)
+			}
+		})
 	}
 }
