@@ -14,7 +14,14 @@ if [[ -n "${SINK_GO_DIR:-}" ]]; then
 fi
 project="sink-qualification-$(date +%s)-$$"
 export SINK_SUITE_IMAGE="${project}:local"
-compose=(docker compose --env-file /dev/null --project-name "${project}" --project-directory "${suite_dir}" --file "${suite_dir}/deploy/compose.yaml")
+compose=(docker compose --env-file /dev/null --project-name "${project}" --project-directory "${suite_dir}" --file "${suite_dir}/deploy/compose.yaml" --file "${artifacts}/ports.yaml")
+# Expose only this disposable replica set for the candidate's storage tests.
+cat > "${artifacts}/ports.yaml" <<'YAML'
+services:
+  mongodb:
+    ports:
+      - "127.0.0.1::27017"
+YAML
 resilience_pid=""
 sampler_pid=""
 broker_paused=0
@@ -137,6 +144,9 @@ git -C "${suite_dir}" diff HEAD > "${artifacts}/suite.patch"
 go test "${suite_go_flags[@]}" ./contract ./internal/... -count=1
 "${compose[@]}" up --build --detach --wait --wait-timeout 180
 wait_for_readiness
+SINK_CANDIDATE_ARTIFACTS="${artifacts}" \
+SINK_MONGODB_TEST_URI="mongodb://$("${compose[@]}" port mongodb 27017)/?directConnection=true" \
+  bash "${suite_dir}/scripts/test-candidate.sh" mongodb
 (
 	while true; do
 		"${compose[@]}" stats --no-stream --format json >> "${artifacts}/resources.jsonl" || true
@@ -158,7 +168,7 @@ SINK_ADDRESS=127.0.0.1:18080 \
 SINK_SECONDARY_ADDRESS=127.0.0.1:18081 \
 SINK_SEARCH_ENDPOINT=http://127.0.0.1:19200 \
 SINK_BACKEND_STORES="${backend_stores}" \
-	run_checked_tests backend-tests TestConfiguredStorageBackendsThroughSink,TestBackendOperationStateMachine,TestNativeBackendQueryCountScan,TestNativeBackendExecute,TestNativeBackendReturnedWrites,TestNativeBackendScanCheckpointsDuringBusinessChanges -run '^Test(ConfiguredStorageBackendsThroughSink|BackendOperationStateMachine|NativeBackend.*)$' -timeout=10m
+	run_checked_tests backend-tests TestConfiguredStorageBackendsThroughSink,TestBackendOperationStateMachine,TestNativeBackendQueryCountScan,TestNativeBackendExecute,TestNativeBackendReturnedWrites,TestNativeBackendScanCheckpointsDuringBusinessChanges,TestMongoBSONFidelityAcrossMergeAndKafka -run '^Test(ConfiguredStorageBackendsThroughSink|BackendOperationStateMachine|NativeBackend.*|MongoBSONFidelityAcrossMergeAndKafka)$' -timeout=10m
 
 "${compose[@]}" stop sink-worker
 recovery_suffix="$(date +%s)-$$"

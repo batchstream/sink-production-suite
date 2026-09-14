@@ -1,4 +1,4 @@
-.PHONY: test test-race fuzz test-integration test-production test-reliability test-conformance test-regression-sensitivity lint
+.PHONY: test test-race fuzz test-integration test-production test-reliability test-conformance test-regression-sensitivity test-candidate lint
 
 STATICCHECK_VERSION := v0.8.1
 FUZZ_TIME ?= 180s
@@ -8,6 +8,9 @@ test:
 
 test-race:
 	go test -race ./... -count=1
+
+test-candidate:
+	bash scripts/test-candidate.sh unit
 
 fuzz:
 	FUZZ_TIME=$(FUZZ_TIME) bash scripts/test-fuzz.sh FuzzProductMergeSequence
@@ -22,10 +25,10 @@ test-regression-sensitivity:
 test-integration: test-conformance
 	bash scripts/test-integration.sh
 
-test-production: test-conformance
+test-production: test-candidate test-conformance
 	SINK_RUN_LOAD=1 SINK_RUN_RESILIENCE=1 bash scripts/test-integration.sh
 
-test-reliability: test-conformance
+test-reliability: test-candidate test-conformance
 	SINK_RUN_LOAD=1 SINK_RUN_RESILIENCE=1 SINK_SOAK_DURATION=2h SINK_SOAK_CONCURRENCY=16 SINK_SOAK_MIN_CYCLES=1000 SINK_SOAK_TEST_TIMEOUT=150m SINK_FAULT_CYCLES=12 SINK_FAULT_INTERVAL_SECONDS=300 bash scripts/test-integration.sh
 
 lint:
