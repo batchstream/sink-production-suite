@@ -71,8 +71,12 @@ func TestSynchronousMergesStreamLargeWorkingSets(t *testing.T) {
 				deadline := time.Now().Add(2 * time.Second)
 				for {
 					call := httpCall{endpoint: server.metrics, method: http.MethodGet}
-					_, metrics := request(t, call)
-					if strings.Contains(string(metrics), "\nsink_batcher_operations_count{method=\"Write\"} 2\n") {
+					_, body := request(t, call)
+					metrics, err := parseMetrics(body)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if metricForStore(metrics, `sink_batcher_operations_count{method="Write"}`, "primary") == 2 {
 						break
 					}
 					if time.Now().After(deadline) {

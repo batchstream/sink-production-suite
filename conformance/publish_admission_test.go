@@ -96,7 +96,7 @@ func TestSynchronousWritesSurvivePublisherSaturation(t *testing.T) {
 			first := addressFor(t, index, "first")
 			pending := writeAsync(t.Context(), server.client, sink.CompletionReturnAfterAccepted, put(t, first, `{"counter":3}`, sink.WriteUpsert))
 			deadline := time.Now().Add(5 * time.Second)
-			for server.metricSnapshot(t)[`sink_admission_pool_requests{pool="publish"}`] != 1 {
+			for metricForStore(server.metricSnapshot(t), `sink_admission_pool_requests{pool="publish"}`, "primary") != 1 {
 				if time.Now().After(deadline) {
 					t.Fatal("publish admission did not reach its configured store limit")
 				}

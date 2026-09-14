@@ -279,11 +279,9 @@ total_conflicts=0
 total_exhausted=0
 for metrics_port in 19090 19091; do
 	metrics="$(curl --fail --silent --show-error "http://127.0.0.1:${metrics_port}/metrics")"
-	grep -q '^sink_merge_conflicts_total' <<<"${metrics}"
-	grep -q '^sink_merge_exhausted_total' <<<"${metrics}"
 	grep -q '^sink_grpc_server_requests_total' <<<"${metrics}"
-	conflicts="$(awk '$1 == "sink_merge_conflicts_total" {print int($2)}' <<<"${metrics}")"
-	exhausted="$(awk '$1 == "sink_merge_exhausted_total" {print int($2)}' <<<"${metrics}")"
+	conflicts="$(awk -v metric_name=sink_merge_conflicts_total -f "${script_dir}/metric-total.awk" <<<"${metrics}")"
+	exhausted="$(awk -v metric_name=sink_merge_exhausted_total -f "${script_dir}/metric-total.awk" <<<"${metrics}")"
 	total_conflicts=$((total_conflicts + conflicts))
 	total_exhausted=$((total_exhausted + exhausted))
 done

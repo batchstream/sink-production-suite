@@ -491,16 +491,9 @@ func (c *candidate) waitQueued(t *testing.T, method string) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		call := httpCall{endpoint: c.metrics, method: http.MethodGet}
-		_, body := request(t, call)
-		for _, line := range strings.Split(string(body), "\n") {
-			prefix := `sink_batcher_queued_operations{method="` + method + `"} `
-			if strings.HasPrefix(line, prefix) {
-				value, err := strconv.Atoi(strings.TrimPrefix(line, prefix))
-				if err == nil && value >= 1 {
-					return
-				}
-			}
+		selector := `sink_batcher_queued_operations{method="` + method + `"}`
+		if metricForStore(c.metricSnapshot(t), selector, "primary") >= 1 {
+			return
 		}
 		time.Sleep(time.Millisecond)
 	}

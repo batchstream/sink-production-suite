@@ -79,7 +79,7 @@ func TestSlowStoreSaturationIsBounded(t *testing.T) {
 				}
 				deadline.Stop()
 				metrics := server.metricSnapshot(t)
-				if metrics[`sink_batcher_queued_operations{method="Write"}`] != 8 || metrics["sink_in_flight_requests"] != 2 {
+				if metricForStore(metrics, `sink_batcher_queued_operations{method="Write"}`, "primary") != 8 || metrics["sink_in_flight_requests"] != 2 {
 					t.Fatalf("saturation schedule not established: %+v", metrics)
 				}
 				// Exercise useful work repeatedly while the other store remains
@@ -143,17 +143,9 @@ func (c *candidate) metricSnapshot(t *testing.T) map[string]float64 {
 	if code != http.StatusOK {
 		t.Fatalf("metrics: HTTP %d", code)
 	}
-	metrics := make(map[string]float64)
-	for _, line := range strings.Split(string(body), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 2 || strings.HasPrefix(fields[0], "#") {
-			continue
-		}
-		value, err := strconv.ParseFloat(fields[1], 64)
-		if err != nil {
-			t.Fatal(err)
-		}
-		metrics[fields[0]] = value
+	metrics, err := parseMetrics(body)
+	if err != nil {
+		t.Fatal(err)
 	}
 	for _, name := range []string{"sink_in_flight_requests", "sink_in_flight_bytes", "go_goroutines", "go_memstats_heap_alloc_bytes"} {
 		if _, ok := metrics[name]; !ok {
