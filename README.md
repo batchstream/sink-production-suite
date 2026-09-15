@@ -248,3 +248,16 @@ uniqueness and limits.
 ## License
 
 MIT
+
+## Grouped Sink configuration
+
+The current harness and `deploy/server.yaml` / `deploy/worker.yaml` use Sink's
+grouped request, execution, publish, batching and merge settings, with duration
+strings. Pair this suite revision with the server configuration refactor.
+Existing server and worker files must be migrated together; see Sink's
+[configuration migration guide](https://github.com/liran/sink/blob/main/docs/configuration-migration.md).
+
+Historical regression sensitivity explicitly selects frozen legacy configuration
+fixtures through `SINK_CONFORMANCE_LEGACY_CONFIG=1` only when launching old
+binaries. Current candidate checks do not use that switch. This keeps historical
+failures tied to the expected behavioral assertion rather than a startup error.

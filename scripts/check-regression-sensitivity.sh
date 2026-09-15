@@ -16,7 +16,7 @@ prove_regression() {
   # Expanding the replacement separately also works with macOS Bash 3.2.
   local separator='$/^'
   local pattern="${test//\//$separator}"
-  SINK_SERVER_BINARY="${directory}/sink" \
+  SINK_CONFORMANCE_LEGACY_CONFIG=1 SINK_SERVER_BINARY="${directory}/sink" \
     go test -race -tags=integration ./conformance -run "^${pattern}$" -count=1 -timeout=2m -json > "${directory}/tests.jsonl" || result="$?"
   if [[ "${result}" == 0 ]]; then
     echo "${label}: old server unexpectedly passed ${test}" >&2
