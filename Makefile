@@ -28,6 +28,7 @@ test-integration: test-conformance
 test-production: test-candidate test-conformance
 	SINK_RUN_LOAD=1 SINK_RUN_RESILIENCE=1 bash scripts/test-integration.sh
 
+test-reliability: export SINK_CONFORMANCE_TEST_TIMEOUT ?= 30m
 test-reliability: test-candidate test-conformance
 	SINK_RUN_LOAD=1 SINK_RUN_RESILIENCE=1 SINK_SOAK_DURATION=2h SINK_SOAK_CONCURRENCY=16 SINK_SOAK_MIN_CYCLES=1000 SINK_SOAK_TEST_TIMEOUT=150m SINK_FAULT_CYCLES=12 SINK_FAULT_INTERVAL_SECONDS=300 bash scripts/test-integration.sh
 

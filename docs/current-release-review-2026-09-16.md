@@ -39,6 +39,14 @@ constrained-resource throughput measurements remain documented in its
 `docs/synchronous-admission-performance.md`; the functional suite uses
 deterministic assertions rather than host-dependent throughput thresholds.
 
+The sustained profile expands the state model to 4,096 steps and increases
+history and saturation rounds. Its conformance prerequisite has a 30-minute
+aggregate timeout; ordinary conformance retains 20 minutes. The original shared
+20-minute timeout terminated the expanded run during its final working-set
+test after the preceding cases passed. `SINK_CONFORMANCE_TEST_TIMEOUT` can
+override the aggregate budget. Individual request deadlines, assertions and
+the two-hour fault workload are unchanged.
+
 These gates qualify synthetic traffic and disposable single-node dependencies.
 Production topology, disk exhaustion, multi-node elections and backup recovery
 remain deployment-specific checks.
