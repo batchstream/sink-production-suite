@@ -2,7 +2,33 @@
 
 package conformance_test
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
+
+type admissionQueueOptions struct {
+	requests int
+	perStore int
+	bytes    int
+	wait     time.Duration
+}
+
+func candidateExecutionConfig(opts serverOptions) string {
+	var config strings.Builder
+	if opts.executionBytes != 0 {
+		fmt.Fprintf(&config, "    max_bytes: %s\n", readableByteSize(opts.executionBytes))
+	}
+	if queue := opts.admissionQueue; queue != nil {
+		fmt.Fprintf(&config, "    queue:\n      max_requests: %d\n      max_requests_per_store: %d\n      max_bytes: %s\n      max_wait: %s\n",
+			queue.requests, queue.perStore, readableByteSize(queue.bytes), queue.wait)
+	}
+	if opts.scanWait != 0 {
+		fmt.Fprintf(&config, "    scan:\n      admission_wait: %s\n", opts.scanWait)
+	}
+	return config.String()
+}
 
 func readableByteSize(value int) string {
 	for _, unit := range []struct {

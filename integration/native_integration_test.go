@@ -263,6 +263,45 @@ func TestNativeBackendQueryCountScan(t *testing.T) {
 				}
 			})
 		}
+		t.Run("scan-projection-pages", func(t *testing.T) {
+			for _, exclude := range []bool{false, true} {
+				projection := &sink.Projection{Fields: []string{"counter"}}
+				if exclude {
+					projection.Fields = []string{"value"}
+					projection.Exclude = true
+				}
+				req := sink.ScanRequest{BatchSize: 3, Projection: projection}
+				if !f.bson {
+					req.Command.Payload = []byte(`{"sort":[{"counter":"asc"}]}`)
+				}
+				var counters []int64
+				for pageNumber := 0; ; pageNumber++ {
+					if pageNumber >= 16 {
+						t.Fatal("projected Scan did not reach the end of twelve records")
+					}
+					page, err := f.dataset.Scan(t.Context(), req)
+					if err != nil || len(page.Documents) == 0 || len(page.Documents) > 3 {
+						t.Fatalf("projected Scan page: %+v %v", page, err)
+					}
+					for _, document := range page.Documents {
+						value := f.decode(t, document)
+						timestampPresent := !value.UpdatedAt.IsZero()
+						if value.Value != "" || timestampPresent != exclude {
+							t.Fatalf("Scan projection changed field or BSON timestamp semantics: exclude=%t document=%+v", exclude, value)
+						}
+						counters = append(counters, value.Counter)
+					}
+					if len(page.NextCursor) == 0 {
+						break
+					}
+					req.Cursor = page.NextCursor
+				}
+				want := []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+				if !slices.Equal(counters, want) {
+					t.Fatalf("projection changed Scan checkpoint order or completeness: exclude=%t counters=%v", exclude, counters)
+				}
+			}
+		})
 		t.Run("scan-pages-and-cancellation", func(t *testing.T) {
 			for _, size := range []int{1, 5, 1000} {
 				req := sink.ScanRequest{BatchSize: size}

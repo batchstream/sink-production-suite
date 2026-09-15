@@ -16,7 +16,7 @@ prove_regression() {
   # Expanding the replacement separately also works with macOS Bash 3.2.
   local separator='$/^'
   local pattern="${test//\//$separator}"
-  SINK_CONFORMANCE_LEGACY_CONFIG=1 SINK_SERVER_BINARY="${directory}/sink" \
+  SINK_CONFORMANCE_LEGACY_CONFIG="${SINK_PROOF_LEGACY_CONFIG:-1}" SINK_SERVER_BINARY="${directory}/sink" \
     go test -race -tags=integration ./conformance -run "^${pattern}$" -count=1 -timeout=2m -json > "${directory}/tests.jsonl" || result="$?"
   if [[ "${result}" == 0 ]]; then
     echo "${label}: old server unexpectedly passed ${test}" >&2
@@ -44,3 +44,6 @@ prove_regression before-streaming-working-set 026d1d16840f7cd17778f528807a1f0a32
 prove_regression before-cumulative-lua-budget a03378982c682fee15fa49c42727e09937153a23 TestLuaBudgetFailuresPreserveStateAndSiblings/elasticsearch/cumulative-helper 'Lua native work escaped its instruction budget'
 prove_regression before-managed-query-paths c38f0dba100c12f222b5141567620588005e8b25 TestManagedQueriesCannotMutateDocuments/elasticsearch/Query 'managed query forwarded mutation endpoint to storage'
 prove_regression before-managed-query-failover 5c208642aea2fa6674f508270afd79eeb0046540 TestManagedQueryEndpointRecovery/elasticsearch/Query 'managed read failed to recover through healthy endpoint'
+
+SINK_PROOF_LEGACY_CONFIG=0 prove_regression before-direct-admission 3d5b641d3599401a13f9f4ea6b98c61e66110a17 TestDirectAdmissionQueuesBurstsAndIsolatesStores/elasticsearch 'transient Count burst was rejected'
+SINK_PROOF_LEGACY_CONFIG=0 prove_regression before-known-put-reservations 3d5b641d3599401a13f9f4ea6b98c61e66110a17 TestReturnedPutsUseKnownDocumentReservations/elasticsearch 'known returning Put sizes fragmented a collected batch'

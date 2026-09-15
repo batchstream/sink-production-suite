@@ -15,6 +15,10 @@ failure proof, configuration/model matrix and remaining qualification gaps.
 Integration, release and sustained runs start with `make test-conformance`;
 suite PRs also prove that the tests reject historical broken candidates.
 
+The [September 16 release coverage review](docs/current-release-review-2026-09-16.md)
+maps the latest Scan, admission, Lua and configuration changes to required tests,
+including the matching Go SDK and historical performance-regression proofs.
+
 The suite verifies:
 
 1. Representative item and offer merge programs match the public Go reference

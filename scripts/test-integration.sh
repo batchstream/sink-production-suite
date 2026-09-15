@@ -164,11 +164,16 @@ SINK_SECONDARY_ADDRESS=127.0.0.1:18081 \
 SINK_SEARCH_ENDPOINT=http://127.0.0.1:19200 \
 	run_checked_tests business-contract TestProductMergeMatchesReferenceThroughSinkAndOpenSearch,TestOfferMergeMatchesReferenceThroughSinkAndOpenSearch,TestConcurrentProductMergesAcrossSinkReplicasLoseNoSuccessfulUpdates,TestStoreKafkaRoutingAndSyncOnlyBehavior,TestReliabilityRejectsOversizedAsyncMutation,TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores,TestReliabilityLuaAliasExpansionIsRejectedWithoutWriting -run '^Test(Product.*|Offer.*|Concurrent.*|StoreKafka.*|Reliability(Rejects.*|ReadBudget.*|LuaAlias.*))$' -timeout=10m
 
+backend_required='TestConfiguredStorageBackendsThroughSink,TestBackendOperationStateMachine,TestNativeBackendQueryCountScan,TestNativeBackendExecute,TestNativeBackendReturnedWrites,TestNativeBackendScanCheckpointsDuringBusinessChanges,TestMongoBSONFidelityAcrossMergeAndKafka'
+IFS=',' read -r -a required_stores <<< "${backend_stores}"
+for backend_spec in "${required_stores[@]}"; do
+  backend_required+=",TestNativeBackendQueryCountScan/${backend_spec%%:*}/scan-projection-pages"
+done
 SINK_ADDRESS=127.0.0.1:18080 \
 SINK_SECONDARY_ADDRESS=127.0.0.1:18081 \
 SINK_SEARCH_ENDPOINT=http://127.0.0.1:19200 \
 SINK_BACKEND_STORES="${backend_stores}" \
-	run_checked_tests backend-tests TestConfiguredStorageBackendsThroughSink,TestBackendOperationStateMachine,TestNativeBackendQueryCountScan,TestNativeBackendExecute,TestNativeBackendReturnedWrites,TestNativeBackendScanCheckpointsDuringBusinessChanges,TestMongoBSONFidelityAcrossMergeAndKafka -run '^Test(ConfiguredStorageBackendsThroughSink|BackendOperationStateMachine|NativeBackend.*|MongoBSONFidelityAcrossMergeAndKafka)$' -timeout=10m
+	run_checked_tests backend-tests "${backend_required}" -run '^Test(ConfiguredStorageBackendsThroughSink|BackendOperationStateMachine|NativeBackend.*|MongoBSONFidelityAcrossMergeAndKafka)$' -timeout=10m
 
 "${compose[@]}" stop sink-worker
 recovery_suffix="$(date +%s)-$$"
