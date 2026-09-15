@@ -2,6 +2,24 @@
 
 package conformance_test
 
+import "fmt"
+
+func readableByteSize(value int) string {
+	for _, unit := range []struct {
+		name  string
+		bytes int
+	}{
+		{name: "GiB", bytes: 1 << 30},
+		{name: "MiB", bytes: 1 << 20},
+		{name: "KiB", bytes: 1 << 10},
+	} {
+		if value >= unit.bytes && value%unit.bytes == 0 {
+			return fmt.Sprintf("%d%s", value/unit.bytes, unit.name)
+		}
+	}
+	return fmt.Sprintf("%dB", value)
+}
+
 // The final indexed placeholder copies the same per-store capacity into the
 // independent publishing pool, preserving each conformance scenario's limits.
 const groupedCandidateConfig = `mode: %s
@@ -19,7 +37,7 @@ storages:
 service:
   request:
     timeout: %ds
-    max_read_bytes: %d
+    max_read_bytes: %s
     max_operations: %d
   execution:
     max_requests: %d

@@ -253,7 +253,7 @@ MIT
 
 The current harness and `deploy/server.yaml` / `deploy/worker.yaml` use Sink's
 grouped request, execution, publish, batching and merge settings, with duration
-strings. Pair this suite revision with the server configuration refactor.
+strings and readable byte sizes such as `64KiB` and `16MiB`. Pair this suite revision with the server configuration refactor.
 Existing server and worker files must be migrated together; see Sink's
 [configuration migration guide](https://github.com/liran/sink/blob/main/docs/configuration-migration.md).
 

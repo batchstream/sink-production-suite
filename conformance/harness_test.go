@@ -105,11 +105,13 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 		t.Fatal(err)
 	}
 	configFormat := groupedCandidateConfig
+	var readLimit any = readableByteSize(defaultInt(opts.readBytes, 32<<20))
 	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "1" {
 		configFormat = legacyCandidateConfig
+		readLimit = defaultInt(opts.readBytes, 32<<20)
 	}
 	config := fmt.Sprintf(configFormat, mode, grpcAddress, metricsAddress, opts.backend.driver, encodedEndpoints,
-		candidateKafkaConfig(opts), candidateSecondaryConfig(opts), defaultInt(opts.requestTimeout, 20), defaultInt(opts.readBytes, 32<<20), defaultInt(opts.maxOps, 1000),
+		candidateKafkaConfig(opts), candidateSecondaryConfig(opts), defaultInt(opts.requestTimeout, 20), readLimit, defaultInt(opts.maxOps, 1000),
 		defaultInt(opts.capacity*2, 128), defaultInt(opts.capacity, 32), defaultInt(opts.luaInstructions, 1000000),
 		defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
 	configPath := filepath.Join(dir, "server.yaml")

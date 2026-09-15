@@ -115,9 +115,9 @@ service:
     max_attempts: 50
     lua:
       timeout: 100ms
-      max_source_bytes: 65536
-      max_result_bytes: 16777216
+      max_source_bytes: 64KiB
+      max_result_bytes: 16MiB
       max_cached_programs: 256
-      max_instructions: 1000000
+      max_instructions: 1_000_000
 
 shutdown_timeout: 15s
