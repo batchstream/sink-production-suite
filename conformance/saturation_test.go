@@ -156,6 +156,7 @@ func (c *candidate) metricSnapshot(t *testing.T) map[string]float64 {
 	for name, value := range metrics {
 		if name == "go_goroutines" || name == "go_memstats_heap_alloc_bytes" ||
 			strings.HasPrefix(name, "sink_in_flight_") || strings.HasPrefix(name, "sink_batcher_queued_") ||
+			strings.HasPrefix(name, "sink_execution_queued_") || strings.HasPrefix(name, "sink_scan_queued_") ||
 			strings.HasPrefix(name, "sink_admission_pool_requests{") || strings.HasPrefix(name, "sink_admission_pool_bytes{") {
 			selected[name] = value
 		}

@@ -57,15 +57,20 @@ if [[ -n "${SINK_GO_DIR:-}" ]]; then
   go mod edit -modfile="${SINK_CONFORMANCE_ARTIFACTS}/suite.go.mod" -replace="github.com/liran/sink-go=${SINK_GO_DIR}"
   suite_go_flags+=("-modfile=${SINK_CONFORMANCE_ARTIFACTS}/suite.go.mod")
 fi
-# Exercise the pinned SDK's real loopback DNS resolver, including healthy
-# scale-out, scale-in, SERVFAIL, and per-client refresh intervals. Require named
-# subtests so an older SDK with no matching test cannot silently pass this gate.
+# Run every ordinary SDK test and require the latest Scan retry and projection
+# regressions. A stale SDK with missing tests must not silently pass the gate.
+go test "${suite_go_flags[@]}" -race github.com/liran/sink-go \
+  -run '^(Test|Example)' -count=1 -timeout=3m -json > "${SINK_CONFORMANCE_ARTIFACTS}/client-unit-tests.jsonl"
+go run ./cmd/check-test-events --file "${SINK_CONFORMANCE_ARTIFACTS}/client-unit-tests.jsonl" \
+  --require 'TestScanRetriesAdmissionWithIdenticalPage,TestScanAdmissionRetriesAreBoundedOrDisabled,TestScanDoesNotRetryUnmarkedOrOtherFailures,TestScanRetryBackoffHonorsCancellationAndTotalTimeout,TestScanProjectionWirePresenceAndValidation'
+# Exercise real loopback DNS with healthy scale-out, scale-in, SERVFAIL and
+# default/custom refresh intervals; these opt-in tests need no storage backend.
 go test "${suite_go_flags[@]}" -race -tags=integration github.com/liran/sink-go \
   -run '^TestDial(BalancesWritesAndFollowsEndpointChanges|DiscoversDNSScaleChangesWithHealthyConnections)$' \
   -count=1 -timeout=3m -json | tee "${SINK_CONFORMANCE_ARTIFACTS}/client-tests.jsonl"
 go run ./cmd/check-test-events --file "${SINK_CONFORMANCE_ARTIFACTS}/client-tests.jsonl" \
   --require 'TestDialBalancesWritesAndFollowsEndpointChanges,TestDialDiscoversDNSScaleChangesWithHealthyConnections/default,TestDialDiscoversDNSScaleChangesWithHealthyConnections/one-second'
-go test "${suite_go_flags[@]}" -race -tags=integration ./conformance -count=1 -timeout=20m -json | tee "${SINK_CONFORMANCE_ARTIFACTS}/tests.jsonl"
+go test "${suite_go_flags[@]}" -race -tags=integration ./conformance -count=1 -timeout="${SINK_CONFORMANCE_TEST_TIMEOUT:-20m}" -json | tee "${SINK_CONFORMANCE_ARTIFACTS}/tests.jsonl"
 required_tests='TestHotKeyMergeAmplification,TestAppliedDoesNotInheritVisibleRefresh,TestCompletedDocumentReleasedBeforeSiblingRead,TestSuccessfulSiblingNotReplayedDuringConflict,TestVisibleDatasetsCompleteIndependently,TestReadBudgetsBelongToOriginalRPC,TestFormattedJSONBulkFraming,TestReplaceRechecksExistenceAfterConflict,TestQueuedCancellationDoesNotPoisonFollowingWrites,TestOperationStateMachine,TestSyncCrashBoundaries,TestLostBackendResponseDoesNotReplayMutation,TestCancellationAfterCommitRetainsState,TestAcceptedMutationCrashBoundaries,TestConcurrentHistories,TestSlowStoreSaturationIsBounded,TestWorkerRetainsStorageFailures'
 required_tests+=',TestNativeRejectsIncompleteBackendResults,TestNativeScanCancellationReleasesCursorAndAdmission,TestNativeExecuteLostResponseDoesNotReplay,TestReturnedWriteCommitAndConflictBoundaries,TestReturnedWriteBudgetsBelongToOriginalRPC,TestNativeResponseLimitsFailWithoutTruncation,TestNativeWireValidationBeforeExecution'
 required_tests+=',TestNativeScanDeadlinesReleaseResources,TestNativeScanResumesAfterServerExit'
@@ -74,6 +79,7 @@ required_tests+=',TestReplaceConflictExhaustionIsRetryable'
 required_tests+=',TestRequestGateDiscardPreventsLateForwarding'
 required_tests+=',TestPublishingSurvivesSynchronousSaturation,TestSynchronousWritesSurvivePublisherSaturation,TestSynchronousMergesStreamLargeWorkingSets'
 required_tests+=',TestLuaBudgetFailuresPreserveStateAndSiblings,TestManagedQueriesCannotMutateDocuments,TestManagedQueryEndpointRecovery,TestQueryLookaheadDoesNotConsumeDocumentBudget'
+required_tests+=',TestDirectAdmissionQueuesBurstsAndIsolatesStores,TestDirectAdmissionQueueBoundsAndCancellation,TestReturnedPutsUseKnownDocumentReservations,TestScanProjectionSurvivesRealAdmissionRetry'
 for backend in elasticsearch opensearch; do
   for operation in insert remove sort unpack move concat pack packsize string-unpack pattern unicode cumulative-helper; do
     required_tests+=",TestLuaBudgetFailuresPreserveStateAndSiblings/${backend}/${operation}"

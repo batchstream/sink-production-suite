@@ -64,6 +64,9 @@ type serverOptions struct {
 	requestTimeout  int
 	luaInstructions int
 	endpoints       []string
+	executionBytes  int
+	admissionQueue  *admissionQueueOptions
+	scanWait        time.Duration
 }
 
 type candidate struct {
@@ -114,6 +117,9 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 		candidateKafkaConfig(opts), candidateSecondaryConfig(opts), defaultInt(opts.requestTimeout, 20), readLimit, defaultInt(opts.maxOps, 1000),
 		defaultInt(opts.capacity*2, 128), defaultInt(opts.capacity, 32), defaultInt(opts.luaInstructions, 1000000),
 		defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
+	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") != "1" {
+		config = strings.Replace(config, "  execution:\n", "  execution:\n"+candidateExecutionConfig(opts), 1)
+	}
 	configPath := filepath.Join(dir, "server.yaml")
 	if err := os.WriteFile(filepath.Join(dir, "test-name.txt"), []byte(t.Name()), 0600); err != nil {
 		t.Fatal(err)
