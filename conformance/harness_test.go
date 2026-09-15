@@ -104,34 +104,14 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := fmt.Sprintf(`mode: %s
-grpc:
-  address: %q
-prometheus:
-  address: %q
-storages:
-  - name: primary
-    driver: %s
-    search:
-      endpoints: %s
-%s
-%s
-service:
-  request_timeout_seconds: %d
-  max_read_bytes: %d
-  max_operations: %d
-  max_merge_attempts: 50
-  max_in_flight_requests: %d
-  max_store_requests: %d
-  lua:
-    max_instructions: %d
-  batching:
-    max_operations: %d
-    max_wait_milliseconds: %d
-    max_queued_operations: %d
-shutdown_timeout_seconds: 2
-`, mode, grpcAddress, metricsAddress, opts.backend.driver, encodedEndpoints,
-		candidateKafkaConfig(opts), candidateSecondaryConfig(opts), defaultInt(opts.requestTimeout, 20), defaultInt(opts.readBytes, 32<<20), defaultInt(opts.maxOps, 1000),
+	configFormat := groupedCandidateConfig
+	var readLimit any = readableByteSize(defaultInt(opts.readBytes, 32<<20))
+	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "1" {
+		configFormat = legacyCandidateConfig
+		readLimit = defaultInt(opts.readBytes, 32<<20)
+	}
+	config := fmt.Sprintf(configFormat, mode, grpcAddress, metricsAddress, opts.backend.driver, encodedEndpoints,
+		candidateKafkaConfig(opts), candidateSecondaryConfig(opts), defaultInt(opts.requestTimeout, 20), readLimit, defaultInt(opts.maxOps, 1000),
 		defaultInt(opts.capacity*2, 128), defaultInt(opts.capacity, 32), defaultInt(opts.luaInstructions, 1000000),
 		defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
 	configPath := filepath.Join(dir, "server.yaml")
@@ -251,17 +231,11 @@ func candidateKafkaConfig(opts serverOptions) string {
 	if opts.broker == "" {
 		return ""
 	}
-	return fmt.Sprintf(`    kafka:
-      enabled: true
-      brokers: [%q]
-      topic: %s
-      group_id: %s-workers
-      dead_letter_topic: %s.dlq
-      topic_partitions: 1
-      topic_replication_factor: 1
-      retry_backoff_milliseconds: 10
-      max_retry_backoff_milliseconds: 100
-`, opts.broker, opts.topic, opts.topic, opts.topic)
+	format := groupedCandidateKafka
+	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "1" {
+		format = legacyCandidateKafka
+	}
+	return fmt.Sprintf(format, opts.broker, opts.topic, opts.topic, opts.topic)
 }
 
 func candidateSecondaryConfig(opts serverOptions) string {
