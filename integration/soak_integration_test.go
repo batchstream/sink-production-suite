@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/liran/sink-production-suite/internal/testuri"
 
 	sink "github.com/liran/sink-go"
 	"google.golang.org/grpc/codes"
@@ -222,7 +225,7 @@ func runSoakWorker(
 }
 
 func runSoakCycle(ctx context.Context, opts soakCycleOptions) error {
-	address, err := sink.NewAddress(opts.store.name, "catalog", opts.dataset, sink.StringKey(opts.key))
+	address, err := sink.NewRecordAddress(testuri.Dataset(opts.store.name, "catalog", opts.dataset, strings.HasPrefix(opts.store.name, "mongodb-")), sink.StringKey(opts.key))
 	if err != nil {
 		return fmt.Errorf("create address: %w", err)
 	}

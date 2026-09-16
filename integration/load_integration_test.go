@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	"github.com/liran/sink-production-suite/internal/fixture"
 	"github.com/liran/sink-production-suite/programs"
@@ -189,7 +191,7 @@ func loadClients(t *testing.T, environment *testEnvironment, count int) []*sink.
 func newLoadTask(opts loadTaskOptions) (loadTask, error) {
 	var task loadTask
 	product := fixture.RepresentativeProduct(opts.index)
-	address, err := sink.NewAddress("primary", "catalog", opts.dataset, sink.StringKey(product.UID))
+	address, err := sink.NewRecordAddress(testuri.Resource("primary", []string{opts.dataset}), sink.StringKey(product.UID))
 	if err != nil {
 		return task, fmt.Errorf("create load address: %w", err)
 	}

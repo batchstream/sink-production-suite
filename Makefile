@@ -1,4 +1,4 @@
-.PHONY: test test-race fuzz test-integration test-production test-reliability test-conformance test-regression-sensitivity test-candidate test-isolated lint
+.PHONY: test test-race fuzz test-integration test-production test-reliability test-conformance test-candidate test-isolated lint
 
 STATICCHECK_VERSION := v0.8.1
 FUZZ_TIME ?= 180s
@@ -21,9 +21,6 @@ test-isolated:
 
 test-conformance:
 	bash scripts/test-conformance.sh
-
-test-regression-sensitivity:
-	SINK_PROVE_REGRESSIONS=1 bash scripts/test-conformance.sh
 
 test-integration: test-conformance
 	bash scripts/test-integration.sh

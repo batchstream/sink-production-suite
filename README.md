@@ -268,10 +268,9 @@ strings, and readable byte sizes. Pair this suite revision with the Store-isolat
 Sink candidate; see Sink's
 [configuration migration guide](https://github.com/liran/sink/blob/main/docs/configuration-migration.md).
 
-Historical regression sensitivity explicitly selects frozen legacy configuration
-fixtures through `SINK_CONFORMANCE_LEGACY_CONFIG=1` (flat) or `grouped` only when launching old
-binaries. Current candidate checks do not use that switch. This keeps historical
-failures tied to the expected behavioral assertion rather than a startup error.
+The suite targets the current URI-only protocol and current configuration. Frozen
+old-release configurations and historical-binary regression gates have been
+removed. Behavioral regression tests continue to run against the candidate build.
 
 ## Store-isolated architecture
 
@@ -285,3 +284,10 @@ The runner uses disposable containers and preserves its evidence directory.
 `make test-conformance` includes these scenarios alongside the public protocol
 compatibility and storage failure contracts. No published server or SDK upgrade
 is required to test a local candidate.
+
+The production runner enables a `conflict` Compose profile with two additional
+Gateways whose primary routes each select a different Engine. The explicit
+cross-Engine merge test uses these public endpoints to verify revision conflicts
+and preservation of every successful update. Ordinary Gateways retain full DNS
+membership and record-key affinity; their normal traffic need not produce a
+revision conflict. The conflict and exhaustion metrics remain mandatory gates.

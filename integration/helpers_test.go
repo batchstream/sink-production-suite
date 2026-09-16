@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	"github.com/liran/sink-production-suite/internal/reference"
 	"google.golang.org/grpc/credentials/insecure"
@@ -150,7 +152,7 @@ func sinkAddress(t *testing.T, index string, key string) sink.Address {
 
 func sinkAddressForStore(t *testing.T, store string, index string, key string) sink.Address {
 	t.Helper()
-	address, err := sink.NewAddress(store, "catalog", index, sink.StringKey(key))
+	address, err := sink.NewRecordAddress(testuri.Dataset(store, "catalog", index, strings.HasPrefix(store, "mongodb-")), sink.StringKey(key))
 	if err != nil {
 		t.Fatalf("sink.NewAddress() error = %v", err)
 	}

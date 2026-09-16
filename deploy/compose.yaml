@@ -347,6 +347,34 @@ services:
     volumes:
       - ./deploy/gateway.yaml:/etc/sink/config.yaml:ro
       - ./deploy/routing:/etc/sink/routing:ro
+  gateway-conflict-a:
+    profiles: [conflict]
+    command: [--config, /etc/sink/config.yaml]
+    depends_on:
+      engine-primary-a:
+        condition: service_started
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    ports:
+      - 127.0.0.1:18082:8080
+      - 127.0.0.1:19093:9090
+    volumes:
+      - ./deploy/gateway.yaml:/etc/sink/config.yaml:ro
+      - ./deploy/conflict-a:/etc/sink/routing:ro
+  gateway-conflict-b:
+    profiles: [conflict]
+    command: [--config, /etc/sink/config.yaml]
+    depends_on:
+      engine-primary-b:
+        condition: service_started
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    ports:
+      - 127.0.0.1:18083:8080
+      - 127.0.0.1:19094:9090
+    volumes:
+      - ./deploy/gateway.yaml:/etc/sink/config.yaml:ro
+      - ./deploy/conflict-b:/etc/sink/routing:ro
   kafka:
     environment:
       CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw

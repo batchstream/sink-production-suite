@@ -377,7 +377,7 @@ func assertCounter(t *testing.T, client *sink.Client, address sink.Address, want
 	defer cancel()
 	results, err := client.Read(ctx, address)
 	if err != nil || len(results) != 1 || results[0].Status != sink.ReadFound {
-		t.Fatalf("read %s: %+v, %v", address.Dataset(), results, err)
+		t.Fatalf("read %s: %+v, %v", address.URI(), results, err)
 	}
 	var document struct {
 		Counter int `json:"counter"`

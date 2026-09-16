@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -83,7 +85,7 @@ type candidate struct {
 
 func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	t.Helper()
-	if opts.secondary != nil && os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "" {
+	if opts.secondary != nil {
 		return startStoreTopology(t, opts)
 	}
 	binary := os.Getenv("SINK_SERVER_BINARY")
@@ -102,9 +104,6 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 		}
 	}
 	mode := "engine"
-	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") != "" {
-		mode = "server"
-	}
 	if opts.role != "" {
 		mode = opts.role
 	}
@@ -119,22 +118,12 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	if err != nil {
 		t.Fatal(err)
 	}
-	configFormat := groupedCandidateConfig
-	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "grouped" {
-		configFormat = groupedLegacyCandidateConfig
-	}
-	var readLimit any = readableByteSize(defaultInt(opts.readBytes, 32<<20))
-	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "1" {
-		configFormat = legacyCandidateConfig
-		readLimit = defaultInt(opts.readBytes, 32<<20)
-	}
-	config := fmt.Sprintf(configFormat, mode, grpcAddress, metricsAddress, opts.backend.driver, encodedEndpoints,
-		candidateKafkaConfig(opts), candidateSecondaryConfig(opts), defaultInt(opts.requestTimeout, 20), readLimit, defaultInt(opts.maxOps, 1000),
+	readLimit := readableByteSize(defaultInt(opts.readBytes, 32<<20))
+	config := fmt.Sprintf(groupedCandidateConfig, mode, grpcAddress, metricsAddress, opts.backend.driver, encodedEndpoints,
+		candidateKafkaConfig(opts), "", defaultInt(opts.requestTimeout, 20), readLimit, defaultInt(opts.maxOps, 1000),
 		defaultInt(opts.capacity*2, 128), defaultInt(opts.capacity, 32), defaultInt(opts.luaInstructions, 1000000),
 		defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
-	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") != "1" {
-		config = strings.Replace(config, "  execution:\n", "  execution:\n"+candidateExecutionConfig(opts), 1)
-	}
+	config = strings.Replace(config, "  execution:\n", "  execution:\n"+candidateExecutionConfig(opts), 1)
 	config = isolatedConfig(config, opts, grpcAddress, metricsAddress)
 	configPath := filepath.Join(dir, "server.yaml")
 	if err := os.WriteFile(filepath.Join(dir, "test-name.txt"), []byte(t.Name()), 0600); err != nil {
@@ -268,25 +257,7 @@ func candidateKafkaConfig(opts serverOptions) string {
 	if opts.broker == "" {
 		return ""
 	}
-	format := groupedCandidateKafka
-	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "grouped" {
-		format = groupedLegacyCandidateKafka
-	}
-	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "1" {
-		format = legacyCandidateKafka
-	}
-	return fmt.Sprintf(format, opts.broker, opts.topic, opts.topic, opts.topic)
-}
-
-func candidateSecondaryConfig(opts serverOptions) string {
-	if opts.secondary == nil || os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "" {
-		return ""
-	}
-	return fmt.Sprintf(`  - name: secondary
-    driver: %s
-    search:
-      endpoints: [%q]
-`, opts.secondary.driver, opts.secondary.endpoint)
+	return fmt.Sprintf(groupedCandidateKafka, opts.broker, opts.topic, opts.topic, opts.topic)
 }
 
 func (c *candidate) crash(t *testing.T) {
@@ -423,7 +394,7 @@ func indexFor(t *testing.T, store backend, refresh string) string {
 
 func addressFor(t *testing.T, index, key string) sink.Address {
 	t.Helper()
-	address, err := sink.NewAddress("primary", "catalog", index, sink.StringKey(key))
+	address, err := sink.NewRecordAddress(testuri.Resource("primary", []string{index}), sink.StringKey(key))
 	if err != nil {
 		t.Fatal(err)
 	}

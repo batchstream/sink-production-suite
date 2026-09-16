@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -69,7 +71,7 @@ func TestDirectAdmissionQueuesBurstsAndIsolatesStores(t *testing.T) {
 			server := startCandidate(t, opts)
 			operation := put(t, addressFor(t, index, "record"), `{"counter":1}`, sink.WriteUpsert)
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, operation), 1)
-			otherAddress, err := sink.NewAddress("secondary", "catalog", otherIndex, sink.StringKey("record"))
+			otherAddress, err := sink.NewRecordAddress(testuri.Resource("secondary", []string{otherIndex}), sink.StringKey("record"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -105,7 +107,7 @@ func TestDirectAdmissionQueuesBurstsAndIsolatesStores(t *testing.T) {
 				t.Fatalf("queued Count requests consumed execution slots or document reservations: before=%v queued=%v", before, queued)
 			}
 			healthy := sink.CountRequest{Command: nativeSearch(otherIndex)}
-			healthy.Command.Store = "secondary"
+			healthy.Command.URI = strings.Replace(healthy.Command.URI, "sink://primary/", "sink://secondary/", 1)
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			counted(t, countAsync(ctx, server.client, healthy))
 			cancel()
@@ -175,7 +177,7 @@ func TestDirectAdmissionQueueBoundsAndCancellation(t *testing.T) {
 				server.waitDirectQueued(t, "primary", 0)
 				replacement := primary
 				following = append(following, countAsync(t.Context(), server.client, replacement))
-				server.waitDirectQueued(t, replacement.Command.Store, 1)
+				server.waitDirectQueued(t, "primary", 1)
 				for _, gate := range gates {
 					gate.open()
 				}

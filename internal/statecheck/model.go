@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 )
 
@@ -90,7 +92,7 @@ func runSequence(t *testing.T, opts Options, name string, sequence []step) {
 	ctx := t.Context()
 	addresses := make([]sink.Address, 3)
 	for key := range addresses {
-		address, err := sink.NewAddress(opts.Store, "catalog", opts.Dataset, sink.StringKey(fmt.Sprintf("%s-key-%d", name, key)))
+		address, err := sink.NewRecordAddress(testuri.Dataset(opts.Store, "catalog", opts.Dataset, opts.Encoding == sink.DocumentEncodingBSON), sink.StringKey(fmt.Sprintf("%s-key-%d", name, key)))
 		if err != nil {
 			t.Fatal(err)
 		}
