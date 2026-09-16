@@ -60,10 +60,8 @@ func nativeFixtures(t *testing.T, check func(*testing.T, *nativeFixture)) {
 func (f *nativeFixture) command(t *testing.T, document bson.D, json string) sink.Command {
 	t.Helper()
 	if f.bson {
-		command, err := sink.NewBSONCommand("sink://"+f.spec.name+
-			"/catalog",
-
-			document)
+		resource := testuri.Dataset(f.spec.name, "catalog", f.name, true)
+		command, err := sink.NewBSONCommand(resource, document)
 		if err != nil {
 			t.Fatal(err)
 		}
