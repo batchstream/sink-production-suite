@@ -25,7 +25,6 @@ service:
     max_operations: 1000
 shutdown_timeout: 15s
 storage:
-  database_id: qualification-elasticsearch-sync
   driver: elasticsearch
   name: elasticsearch-sync
   search:
