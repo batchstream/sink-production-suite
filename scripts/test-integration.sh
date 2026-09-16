@@ -48,10 +48,12 @@ cleanup() {
 	if [[ "${broker_paused}" == 1 ]]; then
 		"${compose[@]}" unpause kafka >/dev/null 2>&1 || true
 	fi
-	for container in "${scaling_workers[@]}"; do
-		docker logs "${container}" > "${artifacts}/${container}.log" 2>&1 || true
-		docker rm --force "${container}" >/dev/null 2>&1 || true
-	done
+	if [[ "${#scaling_workers[@]}" -gt 0 ]]; then
+		for container in "${scaling_workers[@]}"; do
+			docker logs "${container}" > "${artifacts}/${container}.log" 2>&1 || true
+			docker rm --force "${container}" >/dev/null 2>&1 || true
+		done
+	fi
 	if [[ "${exit_code}" != 0 && -f "${artifacts}/soak.jsonl" ]]; then
 		tail -30 "${artifacts}/soak.jsonl"
 	fi
