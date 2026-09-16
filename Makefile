@@ -1,4 +1,4 @@
-.PHONY: test test-race fuzz test-integration test-production test-reliability test-conformance test-candidate test-isolated lint
+.PHONY: test test-race fuzz test-integration test-production test-reliability test-conformance test-candidate test-isolated test-quorum lint
 
 STATICCHECK_VERSION := v0.8.1
 FUZZ_TIME ?= 180s
@@ -28,6 +28,10 @@ test-integration: test-conformance
 test-production: export SINK_SOAK_DURATION ?= 6m
 test-production: test-candidate test-conformance
 	SINK_RUN_LOAD=1 SINK_RUN_RESILIENCE=1 SINK_RUN_SCALING=1 bash scripts/test-integration.sh
+	bash scripts/test-mongodb-quorum.sh
+
+test-quorum:
+	bash scripts/test-mongodb-quorum.sh
 
 test-reliability: export SINK_CONFORMANCE_TEST_TIMEOUT ?= 30m
 test-reliability: test-candidate test-conformance

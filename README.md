@@ -309,3 +309,12 @@ shutdown, all Engines disappearing and recovery. Expected failure cases must
 expose failures and recover without hidden mutation replays. They complement
 Kubernetes measurements; see Sink's
 [rollout timing guide](https://github.com/liran/sink/blob/main/docs/rolling-upgrades.md).
+
+`make test-quorum` runs a separate disposable three-member MongoDB replica set
+and a bounded Engine. It elects a different primary during continuous writes,
+pauses both secondaries to remove the majority, requires no successful write
+acknowledgements during a settled outage window, restores quorum and reconciles
+all acknowledged state. The workload uses application sequence IDs to tolerate
+unknown mutation outcomes. Production qualification includes this check after
+the seven-store workload. It does not certify multi-region failures, disk loss
+or backup restoration.
