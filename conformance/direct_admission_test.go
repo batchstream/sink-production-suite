@@ -63,10 +63,18 @@ func TestDirectAdmissionQueuesBurstsAndIsolatesStores(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, secondary: &store, capacity: 1}
+			other := independentBackend(t, store)
+			otherIndex := indexFor(t, other, "100ms")
+			opts := serverOptions{backend: proxy.backend, secondary: &other, capacity: 1}
 			server := startCandidate(t, opts)
 			operation := put(t, addressFor(t, index, "record"), `{"counter":1}`, sink.WriteUpsert)
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, operation), 1)
+			otherAddress, err := sink.NewAddress("secondary", "catalog", otherIndex, sink.StringKey("record"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			otherOperation := put(t, otherAddress, `{"counter":1}`, sink.WriteUpsert)
+			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, otherOperation), 1)
 			gate := proxy.hold("/"+index+"/_search", "match_all", 1)
 			t.Cleanup(gate.open)
 			req := sink.CountRequest{Command: nativeSearch(index)}
@@ -96,7 +104,7 @@ func TestDirectAdmissionQueuesBurstsAndIsolatesStores(t *testing.T) {
 			if bytes <= 0 || bytes > 1<<20 || queued["sink_in_flight_requests"] != before["sink_in_flight_requests"] || queued["sink_in_flight_bytes"] != before["sink_in_flight_bytes"] {
 				t.Fatalf("queued Count requests consumed execution slots or document reservations: before=%v queued=%v", before, queued)
 			}
-			healthy := req
+			healthy := sink.CountRequest{Command: nativeSearch(otherIndex)}
 			healthy.Command.Store = "secondary"
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			counted(t, countAsync(ctx, server.client, healthy))
@@ -113,29 +121,25 @@ func TestDirectAdmissionQueuesBurstsAndIsolatesStores(t *testing.T) {
 
 func TestDirectAdmissionQueueBoundsAndCancellation(t *testing.T) {
 	for _, store := range searchBackends(t) {
-		for _, bound := range []string{"requests", "store", "bytes"} {
+		for _, bound := range []string{"requests", "bytes"} {
 			t.Run(store.driver+"/"+bound, func(t *testing.T) {
 				index := indexFor(t, store, "100ms")
 				proxy := proxyBackend(t, store)
-				queue := &admissionQueueOptions{requests: 4, perStore: 4, bytes: 1 << 20, wait: 10 * time.Second}
+				queue := &admissionQueueOptions{requests: 4, bytes: 1 << 20, wait: 10 * time.Second}
 				switch bound {
 				case "requests":
-					queue.requests, queue.perStore = 1, 1
-				case "store":
-					queue.perStore = 1
+					queue.requests = 1
 				case "bytes":
 					queue.bytes = 600
 				}
-				opts := serverOptions{backend: proxy.backend, secondary: &proxy.backend, capacity: 1, admissionQueue: queue}
+				opts := serverOptions{backend: proxy.backend, capacity: 1, admissionQueue: queue}
 				server := startCandidate(t, opts)
 				operation := put(t, addressFor(t, index, "record"), `{"counter":1}`, sink.WriteUpsert)
 				applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, operation), 1)
 				primary := sink.CountRequest{Command: nativeSearch(index)}
-				secondary := primary
-				secondary.Command.Store = "secondary"
 				var busy []<-chan countOutcome
 				var gates []*requestGate
-				for _, req := range []sink.CountRequest{primary, secondary} {
+				for _, req := range []sink.CountRequest{primary} {
 					// A newly installed gate observes only subsequent requests.
 					gate := proxy.hold("/"+index+"/_search", "match_all", 1)
 					t.Cleanup(gate.open)
@@ -151,10 +155,7 @@ func TestDirectAdmissionQueueBoundsAndCancellation(t *testing.T) {
 				if bytes <= 0 || bytes > float64(queue.bytes) {
 					t.Fatalf("queued input exceeded its byte budget: %v", metrics)
 				}
-				excess := secondary
-				if bound == "store" {
-					excess = primary
-				}
+				excess := primary
 				call, stop := context.WithTimeout(t.Context(), time.Second)
 				_, err := server.client.Count(call, excess)
 				stop()
@@ -162,10 +163,6 @@ func TestDirectAdmissionQueueBoundsAndCancellation(t *testing.T) {
 					t.Fatalf("direct queue did not enforce %s bound: %v", bound, err)
 				}
 				var following []<-chan countOutcome
-				if bound == "store" {
-					following = append(following, countAsync(t.Context(), server.client, secondary))
-					server.waitDirectQueued(t, "secondary", 1)
-				}
 				cancel()
 				select {
 				case result := <-pending:
@@ -176,10 +173,7 @@ func TestDirectAdmissionQueueBoundsAndCancellation(t *testing.T) {
 					t.Fatal("queued cancellation did not release the caller")
 				}
 				server.waitDirectQueued(t, "primary", 0)
-				replacement := secondary
-				if bound == "store" {
-					replacement = primary
-				}
+				replacement := primary
 				following = append(following, countAsync(t.Context(), server.client, replacement))
 				server.waitDirectQueued(t, replacement.Command.Store, 1)
 				for _, gate := range gates {

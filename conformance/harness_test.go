@@ -50,6 +50,9 @@ func searchBackends(t *testing.T) []backend {
 }
 
 type serverOptions struct {
+	role            string
+	store           string
+	routes          string
 	backend         backend
 	batchOps        int
 	batchWait       int
@@ -80,6 +83,9 @@ type candidate struct {
 
 func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	t.Helper()
+	if opts.secondary != nil && os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") != "1" {
+		return startStoreTopology(t, opts)
+	}
 	binary := os.Getenv("SINK_SERVER_BINARY")
 	if binary == "" {
 		t.Fatal("SINK_SERVER_BINARY is required; use make test-conformance")
@@ -95,7 +101,13 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 			t.Fatal(err)
 		}
 	}
-	mode := "server"
+	mode := "engine"
+	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "1" {
+		mode = "server"
+	}
+	if opts.role != "" {
+		mode = opts.role
+	}
 	if opts.worker {
 		mode = "worker"
 	}
@@ -120,6 +132,7 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") != "1" {
 		config = strings.Replace(config, "  execution:\n", "  execution:\n"+candidateExecutionConfig(opts), 1)
 	}
+	config = isolatedConfig(config, opts, grpcAddress, metricsAddress)
 	configPath := filepath.Join(dir, "server.yaml")
 	if err := os.WriteFile(filepath.Join(dir, "test-name.txt"), []byte(t.Name()), 0600); err != nil {
 		t.Fatal(err)
@@ -199,14 +212,29 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	t.Logf("candidate config and log: %s", dir)
 	server.client = client
 	server.waitReady(t)
+	if mode == "engine" && opts.broker != "" {
+		store := opts.store
+		if store == "" {
+			store = "primary"
+		}
+		server.waitCapability(t, "sink.kafka."+store)
+	}
 	return server
 }
 
 func (c *candidate) waitReady(t *testing.T) {
 	t.Helper()
+	c.waitCapability(t, "")
+}
+
+func (c *candidate) waitCapability(t *testing.T, service string) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	endpoint := strings.TrimSuffix(c.metrics, "/metrics") + "/readyz"
+	if service != "" {
+		endpoint += "?service=" + url.QueryEscape(service)
+	}
 	var last string
 	for ctx.Err() == nil {
 		attempt, stop := context.WithTimeout(ctx, time.Second)
@@ -245,7 +273,7 @@ func candidateKafkaConfig(opts serverOptions) string {
 }
 
 func candidateSecondaryConfig(opts serverOptions) string {
-	if opts.secondary == nil {
+	if opts.secondary == nil || os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") != "1" {
 		return ""
 	}
 	return fmt.Sprintf(`  - name: secondary

@@ -1,0 +1,36 @@
+routes:
+  - database_id: qualification-primary
+    store: primary
+    target: dns:///engine-primary:8080
+    tls:
+      insecure: true
+  - database_id: qualification-secondary
+    store: secondary
+    target: dns:///engine-secondary:8080
+    tls:
+      insecure: true
+  - database_id: qualification-sync-only
+    store: sync-only
+    target: dns:///engine-sync-only:8080
+    tls:
+      insecure: true
+  - database_id: qualification-elasticsearch-sync
+    store: elasticsearch-sync
+    target: dns:///engine-elasticsearch-sync:8080
+    tls:
+      insecure: true
+  - database_id: qualification-elasticsearch-async
+    store: elasticsearch-async
+    target: dns:///engine-elasticsearch-async:8080
+    tls:
+      insecure: true
+  - database_id: qualification-mongodb-sync
+    store: mongodb-sync
+    target: dns:///engine-mongodb-sync:8080
+    tls:
+      insecure: true
+  - database_id: qualification-mongodb-async
+    store: mongodb-async
+    target: dns:///engine-mongodb-async:8080
+    tls:
+      insecure: true

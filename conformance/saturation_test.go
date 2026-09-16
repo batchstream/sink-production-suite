@@ -30,9 +30,11 @@ func TestSlowStoreSaturationIsBounded(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "-1")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, secondary: &store, capacity: 2, maxOps: 8, batchOps: 1, queued: 8}
+			other := independentBackend(t, store)
+			otherIndex := indexFor(t, other, "-1")
+			opts := serverOptions{backend: proxy.backend, secondary: &other, capacity: 2, maxOps: 8, batchOps: 1, queued: 8}
 			server := startCandidate(t, opts)
-			healthy, err := sink.NewAddress("secondary", "catalog", index, sink.StringKey("healthy"))
+			healthy, err := sink.NewAddress("secondary", "catalog", otherIndex, sink.StringKey("healthy"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -70,7 +72,7 @@ func TestSlowStoreSaturationIsBounded(t *testing.T) {
 				for range 56 {
 					select {
 					case result := <-outcomes:
-						if status.Code(result.err) != codes.ResourceExhausted {
+						if status.Code(result.err) != codes.ResourceExhausted && !(result.err == nil && len(result.results) == 1 && result.results[0].Failure != nil && result.results[0].Failure.Code == sink.FailureResourceExhausted) {
 							t.Fatalf("saturated queue did not reject excess work: %+v", result)
 						}
 					case <-deadline.C:

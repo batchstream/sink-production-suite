@@ -1,0 +1,33 @@
+grpc:
+  address: :8080
+  max_receive_message_bytes: 64MiB
+  max_send_message_bytes: 64MiB
+mode: engine
+prometheus:
+  address: :9090
+service:
+  batching:
+    max_bytes: 16MiB
+    max_operations: 1000
+    max_wait: 2ms
+    queue:
+      max_bytes: 128MiB
+      max_operations: 10000
+  merge:
+    lua:
+      max_cached_programs: 256
+      max_instructions: 1e+06
+      max_result_bytes: 16MiB
+      max_source_bytes: 64KiB
+      timeout: 100ms
+    max_attempts: 50
+  request:
+    max_operations: 1000
+shutdown_timeout: 15s
+storage:
+  database_id: qualification-sync-only
+  driver: opensearch
+  name: sync-only
+  search:
+    endpoints:
+      - http://opensearch-sync-only:9200

@@ -59,7 +59,7 @@ cleanup() {
 trap cleanup EXIT
 
 wait_for_readiness() {
-	for port in 19090 19091 19092; do
+	for port in 19090 19091 19100 19101 19092 19102 19103 19121 19104 19105 19106 19107 19108 19109 19124 19110 19111 19112 19113 19126; do
 		local ready=0
 		for _ in $(seq 1 60); do
 			if curl --max-time 3 --fail --silent "http://127.0.0.1:${port}/readyz" >/dev/null; then
@@ -70,6 +70,21 @@ wait_for_readiness() {
 		done
 		if [[ "${ready}" != 1 ]]; then
 			echo "Sink dependency readiness on port ${port} did not recover" >&2
+			return 1
+		fi
+	done
+	local endpoint
+	for endpoint in 19100/readyz?service=sink.storage.primary 19100/readyz?service=sink.kafka.primary 19101/readyz?service=sink.storage.primary 19101/readyz?service=sink.kafka.primary 19092/readyz 19102/readyz?service=sink.storage.secondary 19102/readyz?service=sink.kafka.secondary 19103/readyz?service=sink.storage.secondary 19103/readyz?service=sink.kafka.secondary 19121/readyz 19104/readyz?service=sink.storage.sync-only 19105/readyz?service=sink.storage.sync-only 19106/readyz?service=sink.storage.elasticsearch-sync 19107/readyz?service=sink.storage.elasticsearch-sync 19108/readyz?service=sink.storage.elasticsearch-async 19108/readyz?service=sink.kafka.elasticsearch-async 19109/readyz?service=sink.storage.elasticsearch-async 19109/readyz?service=sink.kafka.elasticsearch-async 19124/readyz 19110/readyz?service=sink.storage.mongodb-sync 19111/readyz?service=sink.storage.mongodb-sync 19112/readyz?service=sink.storage.mongodb-async 19112/readyz?service=sink.kafka.mongodb-async 19113/readyz?service=sink.storage.mongodb-async 19113/readyz?service=sink.kafka.mongodb-async 19126/readyz; do
+		local ready=0
+		for _ in $(seq 1 60); do
+			if curl --max-time 3 --fail --silent "http://127.0.0.1:${endpoint}" >/dev/null; then
+				ready=1
+				break
+			fi
+			sleep 2
+		done
+		if [[ "${ready}" != 1 ]]; then
+			echo "Sink capability ${endpoint} did not recover" >&2
 			return 1
 		fi
 	done
@@ -150,7 +165,7 @@ SINK_MONGODB_TEST_URI="mongodb://$("${compose[@]}" port mongodb 27017)/?directCo
 (
 	while true; do
 		"${compose[@]}" stats --no-stream --format json >> "${artifacts}/resources.jsonl" || true
-		for port in 19090 19091 19092; do
+		for port in 19090 19091 19100 19101 19092 19102 19103 19121 19104 19105 19106 19107 19108 19109 19124 19110 19111 19112 19113 19126; do
 			date -u +%FT%TZ >> "${artifacts}/metrics-${port}.txt"
 			curl --max-time 3 --silent "http://127.0.0.1:${port}/metrics" >> "${artifacts}/metrics-${port}.txt" || true
 		done
@@ -175,7 +190,7 @@ SINK_SEARCH_ENDPOINT=http://127.0.0.1:19200 \
 SINK_BACKEND_STORES="${backend_stores}" \
 	run_checked_tests backend-tests "${backend_required}" -run '^Test(ConfiguredStorageBackendsThroughSink|BackendOperationStateMachine|NativeBackend.*|MongoBSONFidelityAcrossMergeAndKafka)$' -timeout=10m
 
-"${compose[@]}" stop sink-worker
+"${compose[@]}" stop worker-primary
 recovery_suffix="$(date +%s)-$$"
 recovery_index="sink-qualification-recovery-${recovery_suffix}"
 recovery_key="shopify:recovery.example:${recovery_suffix}"
@@ -190,7 +205,7 @@ SINK_RECOVERY_KEY="${recovery_key}" \
 
 "${compose[@]}" restart kafka
 "${compose[@]}" up --detach --wait kafka
-"${compose[@]}" start sink-worker
+"${compose[@]}" start worker-primary
 SINK_ADDRESS=127.0.0.1:18080 \
 SINK_SECONDARY_ADDRESS=127.0.0.1:18081 \
 SINK_SEARCH_ENDPOINT=http://127.0.0.1:19200 \
@@ -223,8 +238,8 @@ if [[ "${SINK_RUN_RESILIENCE:-0}" == "1" ]]; then
 		sleep 15
 		kill -0 "${resilience_pid}"
 		record_fault worker-sigkill
-		"${compose[@]}" kill --signal SIGKILL sink-worker
-		"${compose[@]}" up --detach sink-worker
+		"${compose[@]}" kill --signal SIGKILL worker-primary
+		"${compose[@]}" up --detach worker-primary
 		sleep 15
 		kill -0 "${resilience_pid}"
 		record_fault opensearch-unavailable
@@ -238,8 +253,10 @@ if [[ "${SINK_RUN_RESILIENCE:-0}" == "1" ]]; then
 		# retry round, while healthy stores must keep serving.
 		sleep 45
 		curl --max-time 5 --fail --silent http://127.0.0.1:19090/livez >/dev/null
-		curl --max-time 5 --fail --silent 'http://127.0.0.1:19090/readyz?service=sink.storage.mongodb-sync' >/dev/null
-		readiness_status="$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:19090/readyz)"
+		curl --max-time 5 --fail --silent http://127.0.0.1:19090/readyz >/dev/null
+		curl --max-time 5 --fail --silent http://127.0.0.1:19100/readyz >/dev/null
+		curl --max-time 5 --fail --silent 'http://127.0.0.1:19110/readyz?service=sink.storage.mongodb-sync' >/dev/null
+		readiness_status="$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' 'http://127.0.0.1:19100/readyz?service=sink.storage.primary')"
 		if [[ "${readiness_status}" != 503 ]]; then
 			echo "unavailable OpenSearch must fail dependency readiness: ${readiness_status}" >&2
 			exit 1
@@ -282,7 +299,7 @@ assert_empty_dlq kafka-secondary sink-production-mongodb-mutations.dlq
 
 total_conflicts=0
 total_exhausted=0
-for metrics_port in 19090 19091; do
+for metrics_port in 19100 19101; do
 	metrics="$(curl --fail --silent --show-error "http://127.0.0.1:${metrics_port}/metrics")"
 	grep -q '^sink_grpc_server_requests_total' <<<"${metrics}"
 	conflicts="$(awk -v metric_name=sink_merge_conflicts_total -f "${script_dir}/metric-total.awk" <<<"${metrics}")"
@@ -317,10 +334,10 @@ fi
 dlq_partition="${dlq_summary##*:}"
 export SINK_DLQ_INSPECT_REPORT="${artifacts}/dlq-inspect.jsonl"
 export SINK_DLQ_REPLAY_REPORT="${artifacts}/dlq-replay.jsonl"
-"${compose[@]}" exec -T sink-worker /usr/local/bin/sink dlq inspect \
+"${compose[@]}" exec -T worker-primary /usr/local/bin/sink dlq inspect \
 	--config /etc/sink/config.yaml --store primary --partition "${dlq_partition}" --offset 0 --count 1 > "${SINK_DLQ_INSPECT_REPORT}"
 SINK_DLQ_PHASE=repair run_checked_tests dlq-repair TestReliabilityDeadLetterRecovery -run '^TestReliabilityDeadLetterRecovery$' -timeout=3m
-"${compose[@]}" exec -T sink-worker /usr/local/bin/sink dlq replay \
+"${compose[@]}" exec -T worker-primary /usr/local/bin/sink dlq replay \
 	--config /etc/sink/config.yaml --store primary --partition "${dlq_partition}" --offset 0 --count 1 > "${SINK_DLQ_REPLAY_REPORT}"
 SINK_DLQ_PHASE=verify run_checked_tests dlq-verify TestReliabilityDeadLetterRecovery -run '^TestReliabilityDeadLetterRecovery$' -timeout=3m
 wait_for_zero_group_lag kafka sink-production-workers

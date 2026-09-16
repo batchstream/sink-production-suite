@@ -1,0 +1,38 @@
+mode: worker
+prometheus:
+  address: :9090
+service:
+  merge:
+    lua:
+      max_cached_programs: 256
+      max_instructions: 1e+06
+      max_result_bytes: 16MiB
+      max_source_bytes: 64KiB
+      timeout: 100ms
+    max_attempts: 50
+  request:
+    max_operations: 1000
+shutdown_timeout: 15s
+storage:
+  database_id: qualification-secondary
+  driver: opensearch
+  kafka:
+    brokers:
+      - kafka-secondary:19092
+    consumer:
+      group_id: sink-production-secondary-workers
+      max_poll_records: 500
+      retry:
+        backoff: 100ms
+        max_backoff: 10s
+    dead_letter:
+      topic: sink-production-secondary-mutations.dlq
+    enabled: true
+    topic:
+      name: sink-production-secondary-mutations
+      partitions: 8
+      replication_factor: 1
+  name: secondary
+  search:
+    endpoints:
+      - http://opensearch-secondary:9200
