@@ -11,6 +11,7 @@ grpc:
   max_send_message_bytes: 64MiB
 mode: gateway
 prometheus:
+  enabled: true
   address: :9090
 service:
   request:

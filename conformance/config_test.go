@@ -51,6 +51,7 @@ const groupedCandidateConfig = `mode: %s
 grpc:
   address: %q
 prometheus:
+  enabled: true
   address: %q
 storage:
   name: primary
