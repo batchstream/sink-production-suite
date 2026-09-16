@@ -284,3 +284,10 @@ The runner uses disposable containers and preserves its evidence directory.
 `make test-conformance` includes these scenarios alongside the public protocol
 compatibility and storage failure contracts. No published server or SDK upgrade
 is required to test a local candidate.
+
+The production runner enables a `conflict` Compose profile with two additional
+Gateways whose primary routes each select a different Engine. The explicit
+cross-Engine merge test uses these public endpoints to verify revision conflicts
+and preservation of every successful update. Ordinary Gateways retain full DNS
+membership and record-key affinity; their normal traffic need not produce a
+revision conflict. The conflict and exhaustion metrics remain mandatory gates.

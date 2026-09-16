@@ -14,7 +14,7 @@ if [[ -n "${SINK_GO_DIR:-}" ]]; then
 fi
 project="sink-qualification-$(date +%s)-$$"
 export SINK_SUITE_IMAGE="${project}:local"
-compose=(docker compose --env-file /dev/null --project-name "${project}" --project-directory "${suite_dir}" --file "${suite_dir}/deploy/compose.yaml" --file "${artifacts}/ports.yaml")
+compose=(docker compose --env-file /dev/null --profile conflict --project-name "${project}" --project-directory "${suite_dir}" --file "${suite_dir}/deploy/compose.yaml" --file "${artifacts}/ports.yaml")
 # Expose only this disposable replica set for the candidate's storage tests.
 cat > "${artifacts}/ports.yaml" <<'YAML'
 services:
@@ -59,7 +59,7 @@ cleanup() {
 trap cleanup EXIT
 
 wait_for_readiness() {
-	for port in 19090 19091 19100 19101 19092 19102 19103 19121 19104 19105 19106 19107 19108 19109 19124 19110 19111 19112 19113 19126; do
+	for port in 19090 19091 19093 19094 19100 19101 19092 19102 19103 19121 19104 19105 19106 19107 19108 19109 19124 19110 19111 19112 19113 19126; do
 		local ready=0
 		for _ in $(seq 1 60); do
 			if curl --max-time 3 --fail --silent "http://127.0.0.1:${port}/readyz" >/dev/null; then
@@ -165,7 +165,7 @@ SINK_MONGODB_TEST_URI="mongodb://$("${compose[@]}" port mongodb 27017)/?directCo
 (
 	while true; do
 		"${compose[@]}" stats --no-stream --format json >> "${artifacts}/resources.jsonl" || true
-		for port in 19090 19091 19100 19101 19092 19102 19103 19121 19104 19105 19106 19107 19108 19109 19124 19110 19111 19112 19113 19126; do
+		for port in 19090 19091 19093 19094 19100 19101 19092 19102 19103 19121 19104 19105 19106 19107 19108 19109 19124 19110 19111 19112 19113 19126; do
 			date -u +%FT%TZ >> "${artifacts}/metrics-${port}.txt"
 			curl --max-time 3 --silent "http://127.0.0.1:${port}/metrics" >> "${artifacts}/metrics-${port}.txt" || true
 		done
@@ -177,7 +177,15 @@ sampler_pid="$!"
 SINK_ADDRESS=127.0.0.1:18080 \
 SINK_SECONDARY_ADDRESS=127.0.0.1:18081 \
 SINK_SEARCH_ENDPOINT=http://127.0.0.1:19200 \
-	run_checked_tests business-contract TestProductMergeMatchesReferenceThroughSinkAndOpenSearch,TestOfferMergeMatchesReferenceThroughSinkAndOpenSearch,TestConcurrentProductMergesAcrossSinkReplicasLoseNoSuccessfulUpdates,TestStoreKafkaRoutingAndSyncOnlyBehavior,TestReliabilityRejectsOversizedAsyncMutation,TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores,TestReliabilityLuaAliasExpansionIsRejectedWithoutWriting -run '^Test(Product.*|Offer.*|Concurrent.*|StoreKafka.*|Reliability(Rejects.*|ReadBudget.*|LuaAlias.*))$' -timeout=10m
+	run_checked_tests business-contract TestProductMergeMatchesReferenceThroughSinkAndOpenSearch,TestOfferMergeMatchesReferenceThroughSinkAndOpenSearch,TestStoreKafkaRoutingAndSyncOnlyBehavior,TestReliabilityRejectsOversizedAsyncMutation,TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores,TestReliabilityLuaAliasExpansionIsRejectedWithoutWriting -run '^Test(Product.*|Offer.*|StoreKafka.*|Reliability(Rejects.*|ReadBudget.*|LuaAlias.*))$' -timeout=10m
+
+# Stable full membership gives both ordinary Gateways the same key owner.
+# These two test-only Gateways have deliberately disjoint Engine views so the
+# revision-conflict workload still exercises simultaneous writers on two Engines.
+SINK_ADDRESS=127.0.0.1:18082 \
+SINK_SECONDARY_ADDRESS=127.0.0.1:18083 \
+SINK_SEARCH_ENDPOINT=http://127.0.0.1:19200 \
+	run_checked_tests cross-engine TestConcurrentProductMergesAcrossSinkReplicasLoseNoSuccessfulUpdates -run '^TestConcurrentProductMergesAcrossSinkReplicasLoseNoSuccessfulUpdates$' -timeout=3m
 
 backend_required='TestConfiguredStorageBackendsThroughSink,TestBackendOperationStateMachine,TestNativeBackendQueryCountScan,TestNativeBackendExecute,TestNativeBackendReturnedWrites,TestNativeBackendScanCheckpointsDuringBusinessChanges,TestMongoBSONFidelityAcrossMergeAndKafka'
 IFS=',' read -r -a required_stores <<< "${backend_stores}"
