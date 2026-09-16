@@ -318,3 +318,11 @@ all acknowledged state. The workload uses application sequence IDs to tolerate
 unknown mutation outcomes. Production qualification includes this check after
 the seven-store workload. It does not certify multi-region failures, disk loss
 or backup restoration.
+
+MongoDB containers explicitly set `GLIBC_TUNABLES=glibc.pthread.rseq=1`, matching
+Sink's quickstart and avoiding the affected TCMalloc per-CPU path on kernels with
+the [upstream rseq compatibility issue](https://github.com/google/tcmalloc/issues/292).
+Retain this allocator setting with capacity results. Database startup alone is
+insufficient: qualification requires successful reconciliation after load and
+faults, and cleanup failures fail the run. See Sink's
+[backend environment requirements](https://github.com/liran/sink/blob/main/docs/backend-environment.md).

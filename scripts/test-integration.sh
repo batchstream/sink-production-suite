@@ -59,7 +59,9 @@ cleanup() {
 	fi
 	"${compose[@]}" ps --all > "${artifacts}/containers.txt" 2>&1 || true
 	"${compose[@]}" logs --no-color > "${artifacts}/containers.log" 2>&1 || true
-	"${compose[@]}" down --volumes --remove-orphans >/dev/null 2>&1 || true
+	if ! "${compose[@]}" down --volumes --remove-orphans > "${artifacts}/cleanup.log" 2>&1; then
+		exit_code=1
+	fi
 	echo "Qualification evidence: ${artifacts}"
 	exit "${exit_code}"
 }

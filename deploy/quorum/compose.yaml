@@ -1,5 +1,7 @@
 x-mongo: &mongo
   image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+  environment:
+    GLIBC_TUNABLES: glibc.pthread.rseq=1
   command: ["--replSet", "rs0", "--bind_ip_all", "--wiredTigerCacheSizeGB", "0.25"]
   mem_limit: 768m
   cpus: 1
