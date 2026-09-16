@@ -117,7 +117,7 @@ func waitForDocumentFound(t *testing.T, ctx context.Context, client *sink.Client
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("wait for document %q: %v", address.Dataset(), ctx.Err())
+			t.Fatalf("wait for document %q: %v", address.URI(), ctx.Err())
 		case <-ticker.C:
 		}
 	}

@@ -1,6 +1,6 @@
-# Sum all stores for one counter, including legacy series without labels.
+# Sum all stores for one counter, using Store-labelled series.
 # A counter vector has no samples before its first observation.
-$1 == metric_name || index($1, metric_name "{") == 1 {
+index($1, metric_name "{") == 1 {
     total += $2
 }
 END {

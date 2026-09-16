@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -34,7 +36,7 @@ func TestSlowStoreSaturationIsBounded(t *testing.T) {
 			otherIndex := indexFor(t, other, "-1")
 			opts := serverOptions{backend: proxy.backend, secondary: &other, capacity: 2, maxOps: 8, batchOps: 1, queued: 8}
 			server := startCandidate(t, opts)
-			healthy, err := sink.NewAddress("secondary", "catalog", otherIndex, sink.StringKey("healthy"))
+			healthy, err := sink.NewRecordAddress(testuri.Resource("secondary", []string{otherIndex}), sink.StringKey("healthy"))
 			if err != nil {
 				t.Fatal(err)
 			}

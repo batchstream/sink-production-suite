@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/grpc/codes"
@@ -72,7 +74,7 @@ func TestNativeBackendScanCheckpointsDuringBusinessChanges(t *testing.T) {
 				if f.bson {
 					encoding = sink.DocumentEncodingBSON
 				}
-				opts := sink.DatasetOptions{Store: f.spec.name, Namespace: "catalog", Dataset: f.name, Encoding: encoding}
+				opts := sink.DatasetOptions{URI: testuri.Dataset(f.spec.name, "catalog", f.name, encoding == sink.DocumentEncodingBSON), Encoding: encoding}
 				other, err := sink.NewDataset(f.environment.secondaryClient, opts)
 				if err != nil {
 					t.Fatal(err)

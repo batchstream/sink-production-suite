@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -69,7 +71,7 @@ func TestDirectAdmissionQueuesBurstsAndIsolatesStores(t *testing.T) {
 			server := startCandidate(t, opts)
 			operation := put(t, addressFor(t, index, "record"), `{"counter":1}`, sink.WriteUpsert)
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, operation), 1)
-			otherAddress, err := sink.NewAddress("secondary", "catalog", otherIndex, sink.StringKey("record"))
+			otherAddress, err := sink.NewRecordAddress(testuri.Resource("secondary", []string{otherIndex}), sink.StringKey("record"))
 			if err != nil {
 				t.Fatal(err)
 			}

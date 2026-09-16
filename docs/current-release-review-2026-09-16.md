@@ -1,5 +1,7 @@
 # Qualification since Sink v0.13.0
 
+Historical release review. Current qualification uses the URI-only protocol and has no legacy configuration or historical-binary compatibility gates.
+
 Review target: Sink `1205922ec920a5063dd40abf27a8f88a707b044d` and sink-go
 `45a581d538386ec97a5b04a35b4cef026aad7173`. The SDK dependency is pinned to
 `v0.6.1-0.20260915090422-45a581d53838`, so qualification uses the exact client

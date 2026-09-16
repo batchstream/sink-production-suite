@@ -17,6 +17,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-go/uri"
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 	"google.golang.org/grpc"
@@ -466,9 +469,9 @@ func TestNativeWireValidationBeforeExecution(t *testing.T) {
 					t.Fatalf("server accepted managed pagination parameter %s: %v", parameter, err)
 				}
 			}
-			keyValue := &sinkv1.RecordKey_StringValue{StringValue: "unpublished"}
-			key := &sinkv1.RecordKey{Kind: keyValue}
-			address := &sinkv1.RecordAddress{Store: "primary", Namespace: "catalog", Dataset: index, Key: key}
+			keyValue := uri.StringKey("unpublished")
+			key := keyValue
+			address := &sinkv1.RecordAddress{Uri: testuri.Record("primary", []string{index}, key)}
 			document := &sinkv1.Document{Encoding: sinkv1.DocumentEncoding_DOCUMENT_ENCODING_JSON, Payload: []byte(`{"counter":1}`)}
 			put := &sinkv1.PutOperation{Mode: sinkv1.WriteMode_WRITE_MODE_UPSERT, Document: document}
 			action := &sinkv1.WriteOperation_Put{Put: put}

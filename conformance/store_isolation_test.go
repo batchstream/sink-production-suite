@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 )
 
@@ -77,7 +79,7 @@ func TestStoreIsolatedGatewayPublicContract(t *testing.T) {
 	gatewayOpts := serverOptions{role: "gateway", routes: isolatedRoutes(t, first, second)}
 	gateway := startCandidate(t, gatewayOpts)
 	firstAddress := addressFor(t, firstIndex, "first")
-	secondAddress, err := sink.NewAddress("secondary", "unused", secondIndex, sink.StringKey("second"))
+	secondAddress, err := sink.NewRecordAddress(testuri.Resource("secondary", []string{secondIndex}), sink.StringKey("second"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +125,7 @@ func TestStoreIsolatedGatewayPublicContract(t *testing.T) {
 		constrainedOpts := serverOptions{role: "gateway", routes: gatewayOpts.routes, readBytes: 200}
 		constrained := startCandidate(t, constrainedOpts)
 		firstBudgetAddress := addressFor(t, firstIndex, "budget")
-		secondBudgetAddress, err := sink.NewAddress("secondary", "unused", secondIndex, sink.StringKey("budget"))
+		secondBudgetAddress, err := sink.NewRecordAddress(testuri.Resource("secondary", []string{secondIndex}), sink.StringKey("budget"))
 		if err != nil {
 			t.Fatal(err)
 		}

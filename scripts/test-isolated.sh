@@ -6,9 +6,7 @@ suite_dir="$(cd "${script_dir}/.." && pwd)"
 export SINK_SERVER_DIR="${SINK_SERVER_DIR:-${suite_dir}/../sink}"
 export SINK_CONFORMANCE_ARTIFACTS="$(mktemp -d "${TMPDIR:-/tmp}/sink-conformance.XXXXXXXX")"
 export SINK_SERVER_BINARY="${SINK_CONFORMANCE_ARTIFACTS}/sink"
-# The current candidate must accept the current schema. Only historical proofs
-# opt into the old fixture when they launch a pinned old executable.
-unset SINK_CONFORMANCE_LEGACY_CONFIG
+# Validate the current protocol and configuration together.
 project="sink-conformance-$(date +%s)-$$"
 compose=(docker compose --env-file /dev/null --project-name "${project}" --project-directory "${suite_dir}" --file "${suite_dir}/deploy/compose.yaml" --file "${SINK_CONFORMANCE_ARTIFACTS}/ports.yaml")
 exec > >(tee "${SINK_CONFORMANCE_ARTIFACTS}/run.log") 2>&1

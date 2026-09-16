@@ -25,34 +25,28 @@ func parseMetrics(body []byte) (map[string]float64, error) {
 }
 
 // These selectors use the exporter's canonical label order: method/pool then
-// store. Retain legacy selectors for qualification of historical server builds.
+// store. Each Store must report its own samples.
 func metricForStore(metrics map[string]float64, selector string, store string) float64 {
 	prefix := selector + "{"
 	if strings.HasSuffix(selector, "}") {
 		prefix = strings.TrimSuffix(selector, "}") + ","
 	}
 	name := prefix + "store=" + strconv.Quote(store) + "}"
-	if value, exists := metrics[name]; exists {
-		return value
-	}
-	return metrics[selector]
+	return metrics[name]
 }
 
-func TestMetricForStoreRetainsStoreIsolationAndHistoricalSelectors(t *testing.T) {
+func TestMetricForStoreRetainsStoreIsolation(t *testing.T) {
 	cases := []struct {
 		name     string
 		body     string
 		selector string
 		want     float64
 	}{
-		{"legacy queue", `sink_batcher_queued_operations{method="Write"} 8`, `sink_batcher_queued_operations{method="Write"}`, 8},
 		{"store queue", "sink_batcher_queued_operations{method=\"Write\",store=\"primary\"} 8\nsink_batcher_queued_operations{method=\"Write\",store=\"secondary\"} 4", `sink_batcher_queued_operations{method="Write"}`, 8},
 		{"other store only", `sink_batcher_queued_operations{method="Write",store="secondary"} 4`, `sink_batcher_queued_operations{method="Write"}`, 0},
 		{"other method", `sink_batcher_queued_operations{method="Read",store="primary"} 4`, `sink_batcher_queued_operations{method="Write"}`, 0},
-		{"legacy publish", `sink_admission_pool_requests{pool="publish"} 1`, `sink_admission_pool_requests{pool="publish"}`, 1},
 		{"store publish", `sink_admission_pool_requests{pool="publish",store="primary"} 1`, `sink_admission_pool_requests{pool="publish"}`, 1},
 		{"other pool", `sink_admission_pool_requests{pool="execution",store="primary"} 1`, `sink_admission_pool_requests{pool="publish"}`, 0},
-		{"legacy batch count", `sink_batcher_operations_count{method="Write"} 2`, `sink_batcher_operations_count{method="Write"}`, 2},
 		{"store batch count", `sink_batcher_operations_count{method="Write",store="primary"} 2`, `sink_batcher_operations_count{method="Write"}`, 2},
 		{"store zero takes precedence", "sink_batcher_queued_operations{method=\"Write\",store=\"primary\"} 0\nsink_batcher_queued_operations{method=\"Write\"} 8", `sink_batcher_queued_operations{method="Write"}`, 0},
 	}
@@ -87,7 +81,6 @@ func TestMetricTotalScriptSumsStoresWithoutCountingOtherMetrics(t *testing.T) {
 		body string
 		want string
 	}{
-		{"legacy", "sink_merge_conflicts_total 7\n", "7\n"},
 		{"stores", "sink_merge_conflicts_total{store=\"primary\"} 2\nsink_merge_conflicts_total{store=\"secondary\"} 3\n", "5\n"},
 		{"no observations", "# HELP sink_merge_conflicts_total Revision conflicts\nsink_grpc_server_requests_total{method=\"Write\",store=\"primary\"} 2\n", "0\n"},
 		{"other metric", "sink_merge_conflicts_total_extra 99\nsink_merge_conflicts_total_created{store=\"primary\"} 99\nsink_merge_exhausted_total{store=\"primary\"} 99\nsink_merge_conflicts_total{store=\"primary\"} 1\n", "1\n"},

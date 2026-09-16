@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-production-suite/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/grpc/codes"
@@ -44,7 +46,7 @@ func nativeFixtures(t *testing.T, check func(*testing.T, *nativeFixture)) {
 			if isBSON {
 				encoding = sink.DocumentEncodingBSON
 			}
-			opts := sink.DatasetOptions{Store: spec.name, Namespace: "catalog", Dataset: name, Encoding: encoding}
+			opts := sink.DatasetOptions{URI: testuri.Dataset(spec.name, "catalog", name, encoding == sink.DocumentEncodingBSON), Encoding: encoding}
 			dataset, err := sink.NewDataset(environment.client, opts)
 			if err != nil {
 				t.Fatal(err)
