@@ -326,3 +326,9 @@ Retain this allocator setting with capacity results. Database startup alone is
 insufficient: qualification requires successful reconciliation after load and
 faults, and cleanup failures fail the run. See Sink's
 [backend environment requirements](https://github.com/liran/sink/blob/main/docs/backend-environment.md).
+
+During every storage fault, qualification also performs concurrent conditional
+merges, reads, deletes and independent Kafka acceptance through both Gateways for
+`secondary` and `mongodb-sync`. These must finish before the failed dependencies
+are restored; readiness alone does not establish Store isolation. Every third
+fault cycle keeps the primary Kafka broker paused during these checks as well.

@@ -323,6 +323,13 @@ if [[ "${SINK_RUN_RESILIENCE:-0}" == "1" ]]; then
 			echo "unavailable OpenSearch must fail dependency readiness: ${readiness_status}" >&2
 			exit 1
 		fi
+		SINK_ADDRESS=127.0.0.1:18080 \
+		SINK_SECONDARY_ADDRESS=127.0.0.1:18081 \
+		SINK_BACKEND_STORES='secondary:async,mongodb-sync:sync' \
+			run_checked_tests "fault-isolation-${cycle}" \
+				'TestConfiguredStorageBackendsThroughSink/secondary,TestConfiguredStorageBackendsThroughSink/mongodb-sync' \
+				-run '^TestConfiguredStorageBackendsThroughSink$' -timeout=1m
+		record_fault healthy-store-writes-confirmed
 		if (( cycle % 3 == 0 )); then
 			"${compose[@]}" unpause kafka
 			broker_paused=0
