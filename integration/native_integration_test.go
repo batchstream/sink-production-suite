@@ -60,7 +60,10 @@ func nativeFixtures(t *testing.T, check func(*testing.T, *nativeFixture)) {
 func (f *nativeFixture) command(t *testing.T, document bson.D, json string) sink.Command {
 	t.Helper()
 	if f.bson {
-		command, err := sink.NewBSONCommand(f.spec.name, "catalog", document)
+		command, err := sink.NewBSONCommand("sink://"+f.spec.name+
+			"/catalog",
+
+			document)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -253,7 +256,10 @@ func TestNativeBackendQueryCountScan(t *testing.T) {
 						t.Fatalf("Count accepted writing stage %s: %v", stage, err)
 					}
 					find := bson.D{{Key: "find", Value: f.name + "-forbidden"}}
-					command, err = sink.NewBSONCommand(f.spec.name, "catalog", find)
+					command, err = sink.NewBSONCommand("sink://"+f.spec.name+
+						"/catalog",
+
+						find)
 					if err != nil {
 						t.Fatal(err)
 					}

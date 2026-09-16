@@ -29,7 +29,7 @@ import (
 )
 
 func nativeSearch(index string) sink.Command {
-	command := sink.Command{Store: "primary", Method: http.MethodPost, Path: "/" + index + "/_search",
+	command := sink.Command{URI: testuri.Resource("primary", []string{index}), Method: http.MethodPost, Path: "/_search",
 		ContentType: "application/json", Payload: []byte(`{"query":{"match_all":{}},"sort":[{"counter":"asc"}]}`)}
 	return command
 }
@@ -133,7 +133,7 @@ func TestNativeRejectsIncompleteBackendResults(t *testing.T) {
 						continue
 					}
 					t.Run(method+"/"+mode, func(t *testing.T) {
-						fault := &nativeResponseFault{path: command.Path, mode: mode}
+						fault := &nativeResponseFault{path: nativeEndpointPath(command), mode: mode}
 						proxy.seen.Store(0)
 						proxy.fault.Store(fault)
 						t.Cleanup(func() { proxy.fault.Store(nil) })
@@ -223,7 +223,7 @@ func TestNativeScanCancellationReleasesCursorAndAdmission(t *testing.T) {
 			}
 			command := nativeSearch(index)
 			req := sink.ScanRequest{Command: command, BatchSize: 1}
-			gate := proxy.hold(command.Path, "search_after", 1)
+			gate := proxy.hold(nativeEndpointPath(command), "search_after", 1)
 			t.Cleanup(gate.open)
 			first, err := server.client.Scan(t.Context(), req)
 			if err != nil || len(first.NextCursor) == 0 {
@@ -266,9 +266,9 @@ func TestNativeExecuteLostResponseDoesNotReplay(t *testing.T) {
 			address := addressFor(t, index, "native")
 			operation := put(t, address, `{"counter":0}`, sink.WriteCreate)
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, operation), 1)
-			command := sink.Command{Store: "primary", Method: http.MethodPost, Path: "/" + index + "/_update/native",
+			command := sink.Command{URI: testuri.Resource("primary", []string{index}), Method: http.MethodPost, Path: "/_update/native",
 				ContentType: "application/json", Payload: []byte(`{"script":{"source":"ctx._source.counter += 1"}}`)}
-			gate := proxy.holdResponse(command.Path, "script", true)
+			gate := proxy.holdResponse(nativeEndpointPath(command), "script", true)
 			t.Cleanup(gate.open)
 			req := sink.ExecuteRequest{Command: command}
 			done := make(chan error, 1)
@@ -306,7 +306,7 @@ func TestNativeScanDeadlinesReleaseResources(t *testing.T) {
 			operation := put(t, address, `{"counter":1}`, sink.WriteCreate)
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, operation), 1)
 			command := nativeSearch(index)
-			gate := proxy.hold(command.Path, "sort", 1)
+			gate := proxy.hold(nativeEndpointPath(command), "sort", 1)
 			t.Cleanup(gate.open)
 			req := sink.ScanRequest{Command: command, BatchSize: 1}
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
@@ -443,7 +443,7 @@ func TestNativeWireValidationBeforeExecution(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = connection.Close() })
 			client := sinkv1.NewSinkClient(connection)
-			command := &sinkv1.Command{Store: "primary", Method: "POST", Path: "/" + index + "/_search", ContentType: "application/json", Payload: []byte(`{}`)}
+			command := &sinkv1.Command{Uri: "sink://primary", Method: "POST", Path: "/" + index + "/_search", ContentType: "application/json", Payload: []byte(`{}`)}
 			// Use raw RPCs to bypass SDK validation and qualify the server boundary.
 			tooLarge := &sinkv1.QueryRequest{Command: command, PageSize: 1001}
 			_, err = client.Query(t.Context(), tooLarge)
@@ -495,4 +495,13 @@ func TestNativeWireValidationBeforeExecution(t *testing.T) {
 			}
 		})
 	}
+}
+
+// nativeEndpointPath locates the request to intercept in backend fault fixtures.
+func nativeEndpointPath(command sink.Command) string {
+	address, err := uri.Parse(command.URI)
+	if err != nil {
+		panic(err)
+	}
+	return address.EscapedPath() + command.Path
 }

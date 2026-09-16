@@ -32,7 +32,7 @@ func TestNativeScanResumesAfterServerExit(t *testing.T) {
 				}
 				req.Cursor = page.NextCursor
 				// The backend has already answered, but this page never reaches the SDK.
-				gate := proxy.holdResponse(command.Path, "search_after", true)
+				gate := proxy.holdResponse(nativeEndpointPath(command), "search_after", true)
 				t.Cleanup(gate.open)
 				done := make(chan error, 1)
 				go func() { _, err := first.client.Scan(t.Context(), req); done <- err }()

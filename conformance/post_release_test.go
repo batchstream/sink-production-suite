@@ -98,7 +98,7 @@ func TestManagedQueriesCannotMutateDocuments(t *testing.T) {
 				t.Fatalf("seed: HTTP %d %s", code, before)
 			}
 			command := nativeSearch(index)
-			command.Path = call.path
+			command.Path = "/_doc/_search"
 			for _, method := range []string{"Query", "Count", "Scan"} {
 				t.Run(method, func(t *testing.T) {
 					count, err := managedCall(t.Context(), server.client, command, method)
