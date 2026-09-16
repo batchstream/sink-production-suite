@@ -1,0 +1,20 @@
+gateway:
+  dns_refresh_interval: 1s
+  max_bytes: 512MiB
+  max_fanout: 8
+  max_requests: 1024
+  max_requests_per_store: 128
+  routes_file: routing/routes.yaml
+grpc:
+  address: :8080
+  max_receive_message_bytes: 64MiB
+  max_send_message_bytes: 64MiB
+mode: gateway
+prometheus:
+  address: :9090
+service:
+  request:
+    max_operations: 1000
+    max_read_bytes: 32MiB
+    timeout: 30s
+shutdown_timeout: 15s

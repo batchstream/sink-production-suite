@@ -69,6 +69,7 @@ func TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores(t *testing.T) {
 	secondary := sinkAddressForStore(t, "secondary", index, "large-record")
 	value := map[string]any{"value": strings.Repeat("x", 768<<10)}
 	writePut(t, ctx, environment.client, primary, value)
+	writePut(t, ctx, environment.client, secondary, value)
 	addresses := make([]sink.Address, 64)
 	for i := range addresses {
 		addresses[i] = primary

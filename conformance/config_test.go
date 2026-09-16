@@ -10,7 +10,6 @@ import (
 
 type admissionQueueOptions struct {
 	requests int
-	perStore int
 	bytes    int
 	wait     time.Duration
 }
@@ -21,8 +20,8 @@ func candidateExecutionConfig(opts serverOptions) string {
 		fmt.Fprintf(&config, "    max_bytes: %s\n", readableByteSize(opts.executionBytes))
 	}
 	if queue := opts.admissionQueue; queue != nil {
-		fmt.Fprintf(&config, "    queue:\n      max_requests: %d\n      max_requests_per_store: %d\n      max_bytes: %s\n      max_wait: %s\n",
-			queue.requests, queue.perStore, readableByteSize(queue.bytes), queue.wait)
+		fmt.Fprintf(&config, "    queue:\n      max_requests: %d\n      max_bytes: %s\n      max_wait: %s\n",
+			queue.requests, readableByteSize(queue.bytes), queue.wait)
 	}
 	if opts.scanWait != 0 {
 		fmt.Fprintf(&config, "    scan:\n      admission_wait: %s\n", opts.scanWait)
@@ -46,18 +45,19 @@ func readableByteSize(value int) string {
 	return fmt.Sprintf("%dB", value)
 }
 
-// The final indexed placeholder copies the same per-store capacity into the
+// The final indexed placeholder copies the same process capacity into the
 // independent publishing pool, preserving each conformance scenario's limits.
 const groupedCandidateConfig = `mode: %s
 grpc:
   address: %q
 prometheus:
   address: %q
-storages:
-  - name: primary
-    driver: %s
-    search:
-      endpoints: %s
+storage:
+  name: primary
+  database_id: db-primary
+  driver: %s
+  search:
+    endpoints: %s
 %s
 %s
 service:
@@ -66,8 +66,7 @@ service:
     max_read_bytes: %s
     max_operations: %d
   execution:
-    max_requests: %d
-    max_requests_per_store: %d
+    max_requests: %[12]d
   merge:
     max_attempts: 50
     lua:
@@ -78,22 +77,21 @@ service:
     queue:
       max_operations: %d
   publish:
-    max_requests_per_store: %[12]d
+    max_requests: %[12]d
 shutdown_timeout: 2s
 `
 
-const groupedCandidateKafka = `    kafka:
-      enabled: true
-      brokers: [%q]
-      topic:
-        name: %s
-        partitions: 1
-        replication_factor: 1
-      consumer:
-        group_id: %s-workers
-        retry:
-          backoff: 10ms
-          max_backoff: 100ms
-
-      dead_letter:
-        topic: %s.dlq`
+const groupedCandidateKafka = `  kafka:
+    enabled: true
+    brokers: [%q]
+    topic:
+      name: %s
+      partitions: 1
+      replication_factor: 1
+    consumer:
+      group_id: %s-workers
+      retry:
+        backoff: 10ms
+        max_backoff: 100ms
+    dead_letter:
+      topic: %s.dlq`

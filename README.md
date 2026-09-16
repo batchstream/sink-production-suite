@@ -128,7 +128,8 @@ Docker Compose starts all disposable dependencies on the runner:
 - Elasticsearch 8
 - OpenSearch 3
 - two independent Apache Kafka clusters
-- two Sink servers and one Sink worker
+- two Gateways, two Engines per Store, and one Worker per async Store
+- seven independent database targets; each Store owns exactly one target
 
 No AWS, EKS, persistent cloud volume, KEDA, or private repository is required.
 Kubernetes scheduling and autoscaling belong to deployment validation rather
@@ -213,7 +214,7 @@ SINK_SOAK_MIN_CYCLES=10000 \
 ```
 
 Each integration run uses a unique Compose project and image name and waits for
-`/readyz` on both servers and the worker before traffic. It removes only its own
+process readiness on both Gateways, per-Store Engine capabilities, and Worker readiness before traffic. It removes only its own
 Compose resources and volumes after the run, including failures. Local runs need
 the documented fixed ports to be free; evidence files remain in the printed
 temporary directory. `go test ./...` remains independent of Docker and backends;
@@ -258,15 +259,29 @@ uniqueness and limits.
 
 MIT
 
-## Grouped Sink configuration
+## Current Sink configuration
 
-The current harness and `deploy/server.yaml` / `deploy/worker.yaml` use Sink's
-grouped request, execution, publish, batching and merge settings, with duration
-strings and readable byte sizes such as `64KiB` and `16MiB`. Pair this suite revision with the server configuration refactor.
-Existing server and worker files must be migrated together; see Sink's
+The harness and `deploy/engines/`, `deploy/workers/`, and `deploy/gateway.yaml`
+use the Gateway / single-Store Engine / single-Store Worker architecture. Runtime
+fixtures reject retired multi-Store modes and use grouped settings, duration
+strings, and readable byte sizes. Pair this suite revision with the Store-isolated
+Sink candidate; see Sink's
 [configuration migration guide](https://github.com/liran/sink/blob/main/docs/configuration-migration.md).
 
 Historical regression sensitivity explicitly selects frozen legacy configuration
-fixtures through `SINK_CONFORMANCE_LEGACY_CONFIG=1` only when launching old
+fixtures through `SINK_CONFORMANCE_LEGACY_CONFIG=1` (flat) or `grouped` only when launching old
 binaries. Current candidate checks do not use that switch. This keeps historical
 failures tied to the expected behavioral assertion rather than a startup error.
+
+## Store-isolated architecture
+
+`make test-isolated` builds the local candidate with the race detector and starts
+Gateway plus independent Engines against distinct Elasticsearch/OpenSearch
+backends. It verifies all seven public RPCs, cross-Store partial failure and
+returned-document budgets. It also accepts a mutation, stops its Engine, then
+starts a Worker against real Kafka to prove independent cold-start execution.
+The runner uses disposable containers and preserves its evidence directory.
+
+`make test-conformance` includes these scenarios alongside the public protocol
+compatibility and storage failure contracts. No published server or SDK upgrade
+is required to test a local candidate.

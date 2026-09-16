@@ -1,4 +1,4 @@
-.PHONY: test test-race fuzz test-integration test-production test-reliability test-conformance test-regression-sensitivity test-candidate lint
+.PHONY: test test-race fuzz test-integration test-production test-reliability test-conformance test-regression-sensitivity test-candidate test-isolated lint
 
 STATICCHECK_VERSION := v0.8.1
 FUZZ_TIME ?= 180s
@@ -15,6 +15,9 @@ test-candidate:
 fuzz:
 	FUZZ_TIME=$(FUZZ_TIME) bash scripts/test-fuzz.sh FuzzProductMergeSequence
 	FUZZ_TIME=$(FUZZ_TIME) bash scripts/test-fuzz.sh FuzzOfferMergeSequence
+
+test-isolated:
+	bash scripts/test-isolated.sh
 
 test-conformance:
 	bash scripts/test-conformance.sh

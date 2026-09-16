@@ -1,37 +1,464 @@
 name: sink-production-suite
-
-x-sink-image: &sink-image
-  image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
-  init: true
-
 services:
+  elasticsearch:
+    environment:
+      ES_JAVA_OPTS: -Xms256m -Xmx256m
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+    healthcheck:
+      interval: 3s
+      retries: 60
+      start_period: 10s
+      test:
+        - CMD-SHELL
+        - curl --fail --silent 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' | grep -q '"timed_out":false'
+      timeout: 5s
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.20@sha256:e4797708584bd0df7c746b33a6640d243018a0ae8c8b088391c6f4675a3bef52
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+  elasticsearch-async:
+    environment:
+      ES_JAVA_OPTS: -Xms256m -Xmx256m
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+    healthcheck:
+      interval: 3s
+      retries: 60
+      start_period: 10s
+      test:
+        - CMD-SHELL
+        - curl --fail --silent 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' | grep -q '"timed_out":false'
+      timeout: 5s
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.20@sha256:e4797708584bd0df7c746b33a6640d243018a0ae8c8b088391c6f4675a3bef52
+    volumes:
+      - elasticsearch-async-data:/usr/share/elasticsearch/data
+  engine-elasticsearch-async-a:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      elasticsearch-async:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-elasticsearch-async
+    ports:
+      - 127.0.0.1:19108:9090
+    volumes:
+      - ./deploy/engines/elasticsearch-async.yaml:/etc/sink/config.yaml:ro
+  engine-elasticsearch-async-b:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      elasticsearch-async:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-elasticsearch-async
+    ports:
+      - 127.0.0.1:19109:9090
+    volumes:
+      - ./deploy/engines/elasticsearch-async.yaml:/etc/sink/config.yaml:ro
+  engine-elasticsearch-sync-a:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-elasticsearch-sync
+    ports:
+      - 127.0.0.1:19106:9090
+    volumes:
+      - ./deploy/engines/elasticsearch-sync.yaml:/etc/sink/config.yaml:ro
+  engine-elasticsearch-sync-b:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-elasticsearch-sync
+    ports:
+      - 127.0.0.1:19107:9090
+    volumes:
+      - ./deploy/engines/elasticsearch-sync.yaml:/etc/sink/config.yaml:ro
+  engine-mongodb-async-a:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      kafka-secondary:
+        condition: service_healthy
+      mongodb-async-init:
+        condition: service_completed_successfully
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-mongodb-async
+    ports:
+      - 127.0.0.1:19112:9090
+    volumes:
+      - ./deploy/engines/mongodb-async.yaml:/etc/sink/config.yaml:ro
+  engine-mongodb-async-b:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      kafka-secondary:
+        condition: service_healthy
+      mongodb-async-init:
+        condition: service_completed_successfully
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-mongodb-async
+    ports:
+      - 127.0.0.1:19113:9090
+    volumes:
+      - ./deploy/engines/mongodb-async.yaml:/etc/sink/config.yaml:ro
+  engine-mongodb-sync-a:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      mongodb-init:
+        condition: service_completed_successfully
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-mongodb-sync
+    ports:
+      - 127.0.0.1:19110:9090
+    volumes:
+      - ./deploy/engines/mongodb-sync.yaml:/etc/sink/config.yaml:ro
+  engine-mongodb-sync-b:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      mongodb-init:
+        condition: service_completed_successfully
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-mongodb-sync
+    ports:
+      - 127.0.0.1:19111:9090
+    volumes:
+      - ./deploy/engines/mongodb-sync.yaml:/etc/sink/config.yaml:ro
+  engine-primary-a:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      kafka:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-primary
+    ports:
+      - 127.0.0.1:19100:9090
+    volumes:
+      - ./deploy/engines/primary.yaml:/etc/sink/config.yaml:ro
+  engine-primary-b:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      kafka:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-primary
+    ports:
+      - 127.0.0.1:19101:9090
+    volumes:
+      - ./deploy/engines/primary.yaml:/etc/sink/config.yaml:ro
+  engine-secondary-a:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      kafka-secondary:
+        condition: service_healthy
+      opensearch-secondary:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-secondary
+    ports:
+      - 127.0.0.1:19102:9090
+    volumes:
+      - ./deploy/engines/secondary.yaml:/etc/sink/config.yaml:ro
+  engine-secondary-b:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      kafka-secondary:
+        condition: service_healthy
+      opensearch-secondary:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-secondary
+    ports:
+      - 127.0.0.1:19103:9090
+    volumes:
+      - ./deploy/engines/secondary.yaml:/etc/sink/config.yaml:ro
+  engine-sync-only-a:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      opensearch-sync-only:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-sync-only
+    ports:
+      - 127.0.0.1:19104:9090
+    volumes:
+      - ./deploy/engines/sync-only.yaml:/etc/sink/config.yaml:ro
+  engine-sync-only-b:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      opensearch-sync-only:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    networks:
+      default:
+        aliases:
+          - engine-sync-only
+    ports:
+      - 127.0.0.1:19105:9090
+    volumes:
+      - ./deploy/engines/sync-only.yaml:/etc/sink/config.yaml:ro
+  gateway-a:
+    build:
+      args:
+        VERSION: production-qualification
+      context: ${SINK_SERVER_DIR:-../../sink}
+      dockerfile: Dockerfile
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      engine-elasticsearch-async-a:
+        condition: service_started
+      engine-elasticsearch-sync-a:
+        condition: service_started
+      engine-mongodb-async-a:
+        condition: service_started
+      engine-mongodb-sync-a:
+        condition: service_started
+      engine-primary-a:
+        condition: service_started
+      engine-secondary-a:
+        condition: service_started
+      engine-sync-only-a:
+        condition: service_started
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    ports:
+      - 127.0.0.1:18080:8080
+      - 127.0.0.1:19090:9090
+    volumes:
+      - ./deploy/gateway.yaml:/etc/sink/config.yaml:ro
+      - ./deploy/routing:/etc/sink/routing:ro
+  gateway-b:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      engine-elasticsearch-async-b:
+        condition: service_started
+      engine-elasticsearch-sync-b:
+        condition: service_started
+      engine-mongodb-async-b:
+        condition: service_started
+      engine-mongodb-sync-b:
+        condition: service_started
+      engine-primary-b:
+        condition: service_started
+      engine-secondary-b:
+        condition: service_started
+      engine-sync-only-b:
+        condition: service_started
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    ports:
+      - 127.0.0.1:18081:8080
+      - 127.0.0.1:19091:9090
+    volumes:
+      - ./deploy/gateway.yaml:/etc/sink/config.yaml:ro
+      - ./deploy/routing:/etc/sink/routing:ro
+  kafka:
+    environment:
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: CONTROLLER://:29093,PLAINTEXT://:19092
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_NODE_ID: 1
+      KAFKA_NUM_PARTITIONS: 8
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    healthcheck:
+      interval: 5s
+      retries: 30
+      start_period: 15s
+      test:
+        - CMD-SHELL
+        - /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list >/dev/null 2>&1
+      timeout: 10s
+    hostname: kafka
+    image: apache/kafka:4.2.1@sha256:9916d60eca5d599550e2c320230808fda342124ba550bb4ac4ea8591803262a0
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+  kafka-secondary:
+    environment:
+      CLUSTER_ID: yH3gR2zPQ-O1tYrKho8b0g
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-secondary:19092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-secondary:29093
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: CONTROLLER://:29093,PLAINTEXT://:19092
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_NODE_ID: 1
+      KAFKA_NUM_PARTITIONS: 8
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    healthcheck:
+      interval: 5s
+      retries: 30
+      start_period: 15s
+      test:
+        - CMD-SHELL
+        - /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list >/dev/null 2>&1
+      timeout: 10s
+    hostname: kafka-secondary
+    image: apache/kafka:4.2.1@sha256:9916d60eca5d599550e2c320230808fda342124ba550bb4ac4ea8591803262a0
+    volumes:
+      - kafka-secondary-data:/var/lib/kafka/data
   mongodb:
-    image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
     command:
       - --replSet
       - rs0
       - --bind_ip_all
-    volumes:
-      - mongodb-data:/data/db
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >-
-          mongosh --quiet --eval 'db.adminCommand({ping: 1}).ok' >/dev/null
       interval: 3s
-      timeout: 5s
       retries: 60
       start_period: 5s
-
-  mongodb-init:
+      test:
+        - CMD-SHELL
+        - 'mongosh --quiet --eval ''db.adminCommand({ping: 1}).ok'' >/dev/null'
+      timeout: 5s
     image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+    volumes:
+      - mongodb-data:/data/db
+  mongodb-async:
+    command:
+      - --replSet
+      - rs0
+      - --bind_ip_all
+    healthcheck:
+      interval: 3s
+      retries: 60
+      start_period: 5s
+      test:
+        - CMD-SHELL
+        - 'mongosh --quiet --eval ''db.adminCommand({ping: 1}).ok'' >/dev/null'
+      timeout: 5s
+    image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+    volumes:
+      - mongodb-async-data:/data/db
+  mongodb-async-init:
+    command:
+      - |
+        mongosh --host mongodb-async:27017 --quiet --eval '
+          try {
+            rs.status()
+          } catch (error) {
+            rs.initiate({_id: "rs0", members: [{_id: 0, host: "mongodb-async:27017"}]})
+          }
+        ' >/dev/null
+        until mongosh --host mongodb-async:27017 --quiet --eval 'db.hello().isWritablePrimary' | grep -q true; do
+          sleep 1
+        done
     depends_on:
-      mongodb:
+      mongodb-async:
         condition: service_healthy
-    restart: "no"
     entrypoint:
       - bash
       - -ec
+    image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+    restart: "no"
+  mongodb-init:
     command:
       - |
         mongosh --host mongodb:27017 --quiet --eval '
@@ -44,185 +471,137 @@ services:
         until mongosh --host mongodb:27017 --quiet --eval 'db.hello().isWritablePrimary' | grep -q true; do
           sleep 1
         done
-
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.20@sha256:e4797708584bd0df7c746b33a6640d243018a0ae8c8b088391c6f4675a3bef52
-    environment:
-      discovery.type: single-node
-      xpack.security.enabled: "false"
-      cluster.routing.allocation.disk.threshold_enabled: "false"
-      ES_JAVA_OPTS: -Xms512m -Xmx512m
-    volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - >-
-          curl --fail --silent
-          'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' |
-          grep -q '"timed_out":false'
-      interval: 3s
-      timeout: 5s
-      retries: 60
-      start_period: 10s
-
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    entrypoint:
+      - bash
+      - -ec
+    image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+    restart: "no"
   opensearch:
-    image: opensearchproject/opensearch:3.8.0@sha256:bcc1797519726ceb6d651d4a3e60b7c30da91793914a8dfe75fd441d4f641509
     environment:
-      discovery.type: single-node
       DISABLE_INSTALL_DEMO_CONFIG: "true"
       DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms256m -Xmx256m
       cluster.routing.allocation.disk.threshold_enabled: "false"
-      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+      discovery.type: single-node
+    healthcheck:
+      interval: 3s
+      retries: 60
+      start_period: 10s
+      test:
+        - CMD-SHELL
+        - curl --fail --silent 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' | grep -q '"timed_out":false'
+      timeout: 5s
+    image: opensearchproject/opensearch:3.8.0@sha256:bcc1797519726ceb6d651d4a3e60b7c30da91793914a8dfe75fd441d4f641509
     ports:
       - 127.0.0.1:19200:9200
     volumes:
       - opensearch-data:/usr/share/opensearch/data
+  opensearch-secondary:
+    environment:
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms256m -Xmx256m
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+      discovery.type: single-node
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >-
-          curl --fail --silent
-          'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' |
-          grep -q '"timed_out":false'
       interval: 3s
-      timeout: 5s
       retries: 60
       start_period: 10s
-
-  kafka:
-    image: apache/kafka:4.2.1@sha256:9916d60eca5d599550e2c320230808fda342124ba550bb4ac4ea8591803262a0
-    hostname: kafka
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092
-      KAFKA_LISTENERS: CONTROLLER://:29093,PLAINTEXT://:19092
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_NUM_PARTITIONS: 8
-      KAFKA_LOG_DIRS: /var/lib/kafka/data
-      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
-    volumes:
-      - kafka-data:/var/lib/kafka/data
-    healthcheck:
       test:
         - CMD-SHELL
-        - /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list >/dev/null 2>&1
-      interval: 5s
-      timeout: 10s
-      retries: 30
-      start_period: 15s
-
-  kafka-secondary:
-    image: apache/kafka:4.2.1@sha256:9916d60eca5d599550e2c320230808fda342124ba550bb4ac4ea8591803262a0
-    hostname: kafka-secondary
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-secondary:19092
-      KAFKA_LISTENERS: CONTROLLER://:29093,PLAINTEXT://:19092
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-secondary:29093
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_NUM_PARTITIONS: 8
-      KAFKA_LOG_DIRS: /var/lib/kafka/data
-      CLUSTER_ID: yH3gR2zPQ-O1tYrKho8b0g
+        - curl --fail --silent 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' | grep -q '"timed_out":false'
+      timeout: 5s
+    image: opensearchproject/opensearch:3.8.0@sha256:bcc1797519726ceb6d651d4a3e60b7c30da91793914a8dfe75fd441d4f641509
     volumes:
-      - kafka-secondary-data:/var/lib/kafka/data
+      - opensearch-secondary-data:/usr/share/opensearch/data
+  opensearch-sync-only:
+    environment:
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms256m -Xmx256m
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+      discovery.type: single-node
     healthcheck:
+      interval: 3s
+      retries: 60
+      start_period: 10s
       test:
         - CMD-SHELL
-        - /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list >/dev/null 2>&1
-      interval: 5s
-      timeout: 10s
-      retries: 30
-      start_period: 15s
-
-  sink-server-a:
-    <<: *sink-image
-    build:
-      context: ${SINK_SERVER_DIR:-../../sink}
-      dockerfile: Dockerfile
-      args:
-        VERSION: production-qualification
+        - curl --fail --silent 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' | grep -q '"timed_out":false'
+      timeout: 5s
+    image: opensearchproject/opensearch:3.8.0@sha256:bcc1797519726ceb6d651d4a3e60b7c30da91793914a8dfe75fd441d4f641509
+    volumes:
+      - opensearch-sync-only-data:/usr/share/opensearch/data
+  worker-elasticsearch-async:
     command:
       - --config
       - /etc/sink/config.yaml
-    volumes:
-      - ./deploy/server.yaml:/etc/sink/config.yaml:ro
-    ports:
-      - 127.0.0.1:18080:8080
-      - 127.0.0.1:19090:9090
     depends_on:
-      mongodb-init:
-        condition: service_completed_successfully
-      elasticsearch:
-        condition: service_healthy
-      opensearch:
+      elasticsearch-async:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      kafka-secondary:
-        condition: service_healthy
-
-  sink-server-b:
-    <<: *sink-image
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    ports:
+      - 127.0.0.1:19124:9090
+    volumes:
+      - ./deploy/workers/elasticsearch-async.yaml:/etc/sink/config.yaml:ro
+  worker-mongodb-async:
     command:
       - --config
       - /etc/sink/config.yaml
-    volumes:
-      - ./deploy/server.yaml:/etc/sink/config.yaml:ro
-    ports:
-      - 127.0.0.1:18081:8080
-      - 127.0.0.1:19091:9090
     depends_on:
-      mongodb-init:
+      kafka-secondary:
+        condition: service_healthy
+      mongodb-async-init:
         condition: service_completed_successfully
-      elasticsearch:
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    ports:
+      - 127.0.0.1:19126:9090
+    volumes:
+      - ./deploy/workers/mongodb-async.yaml:/etc/sink/config.yaml:ro
+  worker-primary:
+    command:
+      - --config
+      - /etc/sink/config.yaml
+    depends_on:
+      kafka:
         condition: service_healthy
       opensearch:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-      kafka-secondary:
-        condition: service_healthy
-
-  sink-worker:
-    <<: *sink-image
-    command:
-      - --config
-      - /etc/sink/config.yaml
-    volumes:
-      - ./deploy/worker.yaml:/etc/sink/config.yaml:ro
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
     ports:
       - 127.0.0.1:19092:9090
+    volumes:
+      - ./deploy/workers/primary.yaml:/etc/sink/config.yaml:ro
+  worker-secondary:
+    command:
+      - --config
+      - /etc/sink/config.yaml
     depends_on:
-      mongodb-init:
-        condition: service_completed_successfully
-      elasticsearch:
-        condition: service_healthy
-      opensearch:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
       kafka-secondary:
         condition: service_healthy
-
+      opensearch-secondary:
+        condition: service_healthy
+    image: ${SINK_SUITE_IMAGE:-sink-production-qualification:local}
+    init: true
+    ports:
+      - 127.0.0.1:19121:9090
+    volumes:
+      - ./deploy/workers/secondary.yaml:/etc/sink/config.yaml:ro
 volumes:
-  mongodb-data:
-  elasticsearch-data:
-  opensearch-data:
-  kafka-data:
-  kafka-secondary-data:
+  elasticsearch-async-data: null
+  elasticsearch-data: null
+  kafka-data: null
+  kafka-secondary-data: null
+  mongodb-async-data: null
+  mongodb-data: null
+  opensearch-data: null
+  opensearch-secondary-data: null
+  opensearch-sync-only-data: null

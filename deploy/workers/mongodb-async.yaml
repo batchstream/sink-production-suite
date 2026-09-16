@@ -1,0 +1,40 @@
+mode: worker
+prometheus:
+  address: :9090
+service:
+  merge:
+    lua:
+      max_cached_programs: 256
+      max_instructions: 1e+06
+      max_result_bytes: 16MiB
+      max_source_bytes: 64KiB
+      timeout: 100ms
+    max_attempts: 50
+  request:
+    max_operations: 1000
+shutdown_timeout: 15s
+storage:
+  database_id: qualification-mongodb-async
+  driver: mongodb
+  kafka:
+    brokers:
+      - kafka-secondary:19092
+    consumer:
+      group_id: sink-production-mongodb-workers
+      max_poll_records: 500
+      retry:
+        backoff: 100ms
+        max_backoff: 10s
+    dead_letter:
+      topic: sink-production-mongodb-mutations.dlq
+    enabled: true
+    topic:
+      name: sink-production-mongodb-mutations
+      partitions: 8
+      replication_factor: 1
+  mongodb:
+    max_concurrent_groups: 16
+    max_concurrent_writes: 64
+    metadata_field: __sink
+    uri: mongodb://mongodb-async:27017/?replicaSet=rs0
+  name: mongodb-async
