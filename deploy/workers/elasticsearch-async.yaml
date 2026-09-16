@@ -1,5 +1,6 @@
 mode: worker
 prometheus:
+  enabled: true
   address: :9090
 service:
   merge:
