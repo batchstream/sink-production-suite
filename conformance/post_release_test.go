@@ -162,23 +162,21 @@ func TestManagedQueryEndpointRecovery(t *testing.T) {
 				t.Run(method, func(t *testing.T) {
 					var failed, recovered atomic.Int32
 					forward := httputil.NewSingleHostReverseProxy(target)
-					firstHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					// Fail the first business request regardless of which endpoint health
+					// checks leave next in the client's round-robin order.
+					handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						if r.URL.Path == "/"+index+"/_search" {
-							failed.Add(1)
-							w.WriteHeader(http.StatusServiceUnavailable)
-							return
-						}
-						forward.ServeHTTP(w, r)
-					})
-					first := httptest.NewServer(firstHandler)
-					t.Cleanup(first.Close)
-					secondHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						if r.URL.Path == "/"+index+"/_search" {
+							if failed.CompareAndSwap(0, 1) {
+								w.WriteHeader(http.StatusServiceUnavailable)
+								return
+							}
 							recovered.Add(1)
 						}
 						forward.ServeHTTP(w, r)
 					})
-					second := httptest.NewServer(secondHandler)
+					first := httptest.NewServer(handler)
+					t.Cleanup(first.Close)
+					second := httptest.NewServer(handler)
 					t.Cleanup(second.Close)
 					opts := serverOptions{backend: store, endpoints: []string{first.URL, second.URL}}
 					server := startCandidate(t, opts)
