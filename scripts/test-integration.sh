@@ -59,7 +59,7 @@ cleanup() {
 trap cleanup EXIT
 
 wait_for_readiness() {
-	for port in 19090 19091 19093 19094 19100 19101 19092 19102 19103 19121 19104 19105 19106 19107 19108 19109 19124 19110 19111 19112 19113 19126; do
+	for port in 20090 20091 20093 20094 20100 20101 20092 20102 20103 20121 20104 20105 20106 20107 20108 20109 20124 20110 20111 20112 20113 20126; do
 		local ready=0
 		for _ in $(seq 1 60); do
 			if curl --max-time 3 --fail --silent "http://127.0.0.1:${port}/readyz" >/dev/null; then
@@ -74,7 +74,7 @@ wait_for_readiness() {
 		fi
 	done
 	local endpoint
-	for endpoint in 19100/readyz?service=sink.storage.primary 19100/readyz?service=sink.kafka.primary 19101/readyz?service=sink.storage.primary 19101/readyz?service=sink.kafka.primary 19092/readyz 19102/readyz?service=sink.storage.secondary 19102/readyz?service=sink.kafka.secondary 19103/readyz?service=sink.storage.secondary 19103/readyz?service=sink.kafka.secondary 19121/readyz 19104/readyz?service=sink.storage.sync-only 19105/readyz?service=sink.storage.sync-only 19106/readyz?service=sink.storage.elasticsearch-sync 19107/readyz?service=sink.storage.elasticsearch-sync 19108/readyz?service=sink.storage.elasticsearch-async 19108/readyz?service=sink.kafka.elasticsearch-async 19109/readyz?service=sink.storage.elasticsearch-async 19109/readyz?service=sink.kafka.elasticsearch-async 19124/readyz 19110/readyz?service=sink.storage.mongodb-sync 19111/readyz?service=sink.storage.mongodb-sync 19112/readyz?service=sink.storage.mongodb-async 19112/readyz?service=sink.kafka.mongodb-async 19113/readyz?service=sink.storage.mongodb-async 19113/readyz?service=sink.kafka.mongodb-async 19126/readyz; do
+	for endpoint in 20100/readyz?service=sink.storage.primary 20100/readyz?service=sink.kafka.primary 20101/readyz?service=sink.storage.primary 20101/readyz?service=sink.kafka.primary 20092/readyz 20102/readyz?service=sink.storage.secondary 20102/readyz?service=sink.kafka.secondary 20103/readyz?service=sink.storage.secondary 20103/readyz?service=sink.kafka.secondary 20121/readyz 20104/readyz?service=sink.storage.sync-only 20105/readyz?service=sink.storage.sync-only 20106/readyz?service=sink.storage.elasticsearch-sync 20107/readyz?service=sink.storage.elasticsearch-sync 20108/readyz?service=sink.storage.elasticsearch-async 20108/readyz?service=sink.kafka.elasticsearch-async 20109/readyz?service=sink.storage.elasticsearch-async 20109/readyz?service=sink.kafka.elasticsearch-async 20124/readyz 20110/readyz?service=sink.storage.mongodb-sync 20111/readyz?service=sink.storage.mongodb-sync 20112/readyz?service=sink.storage.mongodb-async 20112/readyz?service=sink.kafka.mongodb-async 20113/readyz?service=sink.storage.mongodb-async 20113/readyz?service=sink.kafka.mongodb-async 20126/readyz; do
 		local ready=0
 		for _ in $(seq 1 60); do
 			if curl --max-time 3 --fail --silent "http://127.0.0.1:${endpoint}" >/dev/null; then
@@ -260,11 +260,11 @@ if [[ "${SINK_RUN_RESILIENCE:-0}" == "1" ]]; then
 		# This exceeds the product's 20-second processing window and default
 		# retry round, while healthy stores must keep serving.
 		sleep 45
-		curl --max-time 5 --fail --silent http://127.0.0.1:19090/livez >/dev/null
-		curl --max-time 5 --fail --silent http://127.0.0.1:19090/readyz >/dev/null
-		curl --max-time 5 --fail --silent http://127.0.0.1:19100/readyz >/dev/null
-		curl --max-time 5 --fail --silent 'http://127.0.0.1:19110/readyz?service=sink.storage.mongodb-sync' >/dev/null
-		readiness_status="$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' 'http://127.0.0.1:19100/readyz?service=sink.storage.primary')"
+		curl --max-time 5 --fail --silent http://127.0.0.1:20090/livez >/dev/null
+		curl --max-time 5 --fail --silent http://127.0.0.1:20090/readyz >/dev/null
+		curl --max-time 5 --fail --silent http://127.0.0.1:20100/readyz >/dev/null
+		curl --max-time 5 --fail --silent 'http://127.0.0.1:20110/readyz?service=sink.storage.mongodb-sync' >/dev/null
+		readiness_status="$(curl --max-time 5 --silent --output /dev/null --write-out '%{http_code}' 'http://127.0.0.1:20100/readyz?service=sink.storage.primary')"
 		if [[ "${readiness_status}" != 503 ]]; then
 			echo "unavailable OpenSearch must fail dependency readiness: ${readiness_status}" >&2
 			exit 1

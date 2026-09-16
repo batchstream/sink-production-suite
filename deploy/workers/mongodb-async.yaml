@@ -1,4 +1,6 @@
 mode: worker
+health:
+  address: ":8081"
 prometheus:
   enabled: true
   address: :9090

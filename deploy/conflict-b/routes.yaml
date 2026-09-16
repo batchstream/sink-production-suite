@@ -1,5 +1,0 @@
-routes:
-  - store: primary
-    target: dns:///engine-primary-b:8080
-    tls:
-      insecure: true

@@ -4,12 +4,42 @@ gateway:
   max_fanout: 8
   max_requests: 1024
   max_requests_per_store: 128
-  routes_file: routing/routes.yaml
+  routes:
+    - store: primary
+      target: dns:///engine-primary:8080
+      tls:
+        insecure: true
+    - store: secondary
+      target: dns:///engine-secondary:8080
+      tls:
+        insecure: true
+    - store: sync-only
+      target: dns:///engine-sync-only:8080
+      tls:
+        insecure: true
+    - store: elasticsearch-sync
+      target: dns:///engine-elasticsearch-sync:8080
+      tls:
+        insecure: true
+    - store: elasticsearch-async
+      target: dns:///engine-elasticsearch-async:8080
+      tls:
+        insecure: true
+    - store: mongodb-sync
+      target: dns:///engine-mongodb-sync:8080
+      tls:
+        insecure: true
+    - store: mongodb-async
+      target: dns:///engine-mongodb-async:8080
+      tls:
+        insecure: true
 grpc:
   address: :8080
   max_receive_message_bytes: 64MiB
   max_send_message_bytes: 64MiB
 mode: gateway
+health:
+  address: ":8081"
 prometheus:
   enabled: true
   address: :9090
