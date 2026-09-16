@@ -1,0 +1,45 @@
+x-mongo: &mongo
+  image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+  environment:
+    GLIBC_TUNABLES: glibc.pthread.rseq=1
+  command: ["--replSet", "rs0", "--bind_ip_all", "--wiredTigerCacheSizeGB", "0.25"]
+  mem_limit: 768m
+  cpus: 1
+  healthcheck:
+    test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ping:1}).ok"]
+    interval: 3s
+    timeout: 5s
+    retries: 40
+services:
+  mongo1:
+    <<: *mongo
+    volumes: ["mongo1:/data/db"]
+  mongo2:
+    <<: *mongo
+    volumes: ["mongo2:/data/db"]
+  mongo3:
+    <<: *mongo
+    volumes: ["mongo3:/data/db"]
+  initialize:
+    <<: *mongo
+    depends_on:
+      mongo1: {condition: service_healthy}
+      mongo2: {condition: service_healthy}
+      mongo3: {condition: service_healthy}
+    entrypoint: ["mongosh", "--host", "mongo1:27017", "--quiet", "--eval"]
+    command: ['rs.initiate({_id:"rs0",members:[{_id:0,host:"mongo1:27017"},{_id:1,host:"mongo2:27017"},{_id:2,host:"mongo3:27017"}]})']
+    healthcheck: {disable: true}
+  engine:
+    image: ${SINK_QUORUM_IMAGE:?set SINK_QUORUM_IMAGE}
+    command: ["--config", "/etc/sink/config.yaml"]
+    mem_limit: 512m
+    cpus: 1
+    environment: {GOMEMLIMIT: 384MiB}
+    volumes: ["./engine.yaml:/etc/sink/config.yaml:ro"]
+    depends_on:
+      initialize: {condition: service_completed_successfully}
+    ports: ["127.0.0.1::8080", "127.0.0.1::8081"]
+volumes:
+  mongo1:
+  mongo2:
+  mongo3:

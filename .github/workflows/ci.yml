@@ -104,6 +104,7 @@ jobs:
             ${{ runner.temp }}/sink-qualification.*
             ${{ runner.temp }}/sink-conformance.*
             ${{ runner.temp }}/sink-candidate.*
+            ${{ runner.temp }}/sink-quorum.*
           retention-days: 14
 
   fuzz:

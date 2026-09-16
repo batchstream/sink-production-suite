@@ -291,3 +291,44 @@ cross-Engine merge test uses these public endpoints to verify revision conflicts
 and preservation of every successful update. Ordinary Gateways retain full DNS
 membership and record-key affinity; their normal traffic need not produce a
 revision conflict. The conflict and exhaustion metrics remain mandatory gates.
+
+Production qualification also scales the primary Worker group 1 → 3 → 0 → 1
+during the reconciled workload. It requires each active member to own partitions,
+then verifies persisted business state, zero remaining source lag and empty DLQs
+before the separate intentional dead-letter case. Temporary one-off replicas
+have no published host ports and are removed by the runner's cleanup trap.
+`make test-production` uses a six-minute workload for scaling and the fault
+cycle; the two-hour reliability profile also includes scaling. For custom runs,
+set `SINK_RUN_SCALING=1 SINK_RUN_RESILIENCE=1` and choose sufficient
+`SINK_SOAK_DURATION`/`SINK_SOAK_TEST_TIMEOUT` for the requested fault cycles.
+
+Candidate gates require the HTTP shutdown/readiness and retained Gateway batch
+snapshot regressions. Conformance requires loopback DNS tests for healthy
+membership changes, sufficient/insufficient drain, stale answers, SERVFAIL during
+shutdown, all Engines disappearing and recovery. Expected failure cases must
+expose failures and recover without hidden mutation replays. They complement
+Kubernetes measurements; see Sink's
+[rollout timing guide](https://github.com/liran/sink/blob/main/docs/rolling-upgrades.md).
+
+`make test-quorum` runs a separate disposable three-member MongoDB replica set
+and a bounded Engine. It elects a different primary during continuous writes,
+pauses both secondaries to remove the majority, requires no successful write
+acknowledgements during a settled outage window, restores quorum and reconciles
+all acknowledged state. The workload uses application sequence IDs to tolerate
+unknown mutation outcomes. Production qualification includes this check after
+the seven-store workload. It does not certify multi-region failures, disk loss
+or backup restoration.
+
+MongoDB containers explicitly set `GLIBC_TUNABLES=glibc.pthread.rseq=1`, matching
+Sink's quickstart and avoiding the affected TCMalloc per-CPU path on kernels with
+the [upstream rseq compatibility issue](https://github.com/google/tcmalloc/issues/292).
+Retain this allocator setting with capacity results. Database startup alone is
+insufficient: qualification requires successful reconciliation after load and
+faults, and cleanup failures fail the run. See Sink's
+[backend environment requirements](https://github.com/liran/sink/blob/main/docs/backend-environment.md).
+
+During every storage fault, qualification also performs concurrent conditional
+merges, reads, deletes and independent Kafka acceptance through both Gateways for
+`secondary` and `mongodb-sync`. These must finish before the failed dependencies
+are restored; readiness alone does not establish Store isolation. Every third
+fault cycle keeps the primary Kafka broker paused during these checks as well.

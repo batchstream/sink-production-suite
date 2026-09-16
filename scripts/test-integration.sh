@@ -25,6 +25,7 @@ YAML
 resilience_pid=""
 sampler_pid=""
 broker_paused=0
+scaling_workers=()
 fault_cycles="${SINK_FAULT_CYCLES:-1}"
 fault_interval="${SINK_FAULT_INTERVAL_SECONDS:-0}"
 if [[ ! "${fault_cycles}" =~ ^[0-9]+$ || "${fault_cycles}" -lt 1 || "${fault_cycles}" -gt 24 || ! "${fault_interval}" =~ ^[0-9]+$ || "${fault_interval}" -gt 3600 ]]; then
@@ -47,12 +48,20 @@ cleanup() {
 	if [[ "${broker_paused}" == 1 ]]; then
 		"${compose[@]}" unpause kafka >/dev/null 2>&1 || true
 	fi
+	if [[ "${#scaling_workers[@]}" -gt 0 ]]; then
+		for container in "${scaling_workers[@]}"; do
+			docker logs "${container}" > "${artifacts}/${container}.log" 2>&1 || true
+			docker rm --force "${container}" >/dev/null 2>&1 || true
+		done
+	fi
 	if [[ "${exit_code}" != 0 && -f "${artifacts}/soak.jsonl" ]]; then
 		tail -30 "${artifacts}/soak.jsonl"
 	fi
 	"${compose[@]}" ps --all > "${artifacts}/containers.txt" 2>&1 || true
 	"${compose[@]}" logs --no-color > "${artifacts}/containers.log" 2>&1 || true
-	"${compose[@]}" down --volumes --remove-orphans >/dev/null 2>&1 || true
+	if ! "${compose[@]}" down --volumes --remove-orphans > "${artifacts}/cleanup.log" 2>&1; then
+		exit_code=1
+	fi
 	echo "Qualification evidence: ${artifacts}"
 	exit "${exit_code}"
 }
@@ -100,6 +109,23 @@ run_checked_tests() {
 
 record_fault() {
 	printf '%s %s\n' "$(date -u +%FT%TZ)" "$1" >> "${artifacts}/faults.log"
+}
+
+wait_for_worker_members() {
+	local expected="$1"
+	local observation=""
+	for _ in $(seq 1 30); do
+		"${compose[@]}" exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh \
+			--bootstrap-server localhost:19092 --group sink-production-workers \
+			--describe --members > "${artifacts}/worker-members-${expected}.txt"
+		observation="$(awk '$1 == "sink-production-workers" && $NF ~ /^[0-9]+$/ {members++; if ($NF > 0) assigned++} END {printf "%d:%d", members, assigned}' "${artifacts}/worker-members-${expected}.txt")"
+		if [[ "${observation}" == "${expected}:${expected}" ]]; then
+			return 0
+		fi
+		sleep 2
+	done
+	echo "expected ${expected} active assigned Workers, got ${observation}" >&2
+	return 1
 }
 
 wait_for_zero_group_lag() {
@@ -241,6 +267,34 @@ if [[ "${SINK_RUN_RESILIENCE:-0}" == "1" ]]; then
 	SINK_SOAK_MIN_CYCLES="${SINK_SOAK_MIN_CYCLES:-100}" \
 		go test "${suite_go_flags[@]}" -tags=integration ./integration -json -count=1 -run '^TestStorageBackendSoak$' -timeout="${SINK_SOAK_TEST_TIMEOUT:-10m}" > "${artifacts}/soak.jsonl" &
 	resilience_pid="$!"
+	if [[ "${SINK_RUN_SCALING:-0}" == 1 ]]; then
+		# Compose run does not publish the service's fixed host ports. These
+		# disposable replicas use the same Store, topic and consumer group.
+		sleep 15
+		record_fault worker-scale-1-to-3
+		for replica in 2 3; do
+			container="${project}-worker-scaling-${replica}"
+			scaling_workers+=("${container}")
+			"${compose[@]}" run --detach --no-deps --name "${container}" worker-primary
+		done
+		wait_for_worker_members 3
+		sleep 10
+		kill -0 "${resilience_pid}"
+		record_fault worker-scale-3-to-0
+		"${compose[@]}" stop --timeout 30 worker-primary
+		for container in "${scaling_workers[@]}"; do
+			docker stop --time 30 "${container}"
+		done
+		wait_for_worker_members 0
+		# Engine still accepts durable writes while all Workers are absent.
+		sleep 15
+		kill -0 "${resilience_pid}"
+		record_fault worker-scale-0-to-1
+		"${compose[@]}" start worker-primary
+		wait_for_worker_members 1
+		sleep 10
+		kill -0 "${resilience_pid}"
+	fi
 	for cycle in $(seq 1 "${fault_cycles}"); do
 		record_fault "cycle-${cycle}-start"
 		sleep 15
@@ -269,6 +323,13 @@ if [[ "${SINK_RUN_RESILIENCE:-0}" == "1" ]]; then
 			echo "unavailable OpenSearch must fail dependency readiness: ${readiness_status}" >&2
 			exit 1
 		fi
+		SINK_ADDRESS=127.0.0.1:18080 \
+		SINK_SECONDARY_ADDRESS=127.0.0.1:18081 \
+		SINK_BACKEND_STORES='secondary:async,mongodb-sync:sync' \
+			run_checked_tests "fault-isolation-${cycle}" \
+				'TestConfiguredStorageBackendsThroughSink/secondary,TestConfiguredStorageBackendsThroughSink/mongodb-sync' \
+				-run '^TestConfiguredStorageBackendsThroughSink$' -timeout=1m
+		record_fault healthy-store-writes-confirmed
 		if (( cycle % 3 == 0 )); then
 			"${compose[@]}" unpause kafka
 			broker_paused=0

@@ -1,0 +1,13 @@
+mode: engine
+storage:
+  name: mongo
+  driver: mongodb
+  mongodb:
+    uri: mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0
+service:
+  request:
+    timeout: 5s
+    max_read_bytes: 4MiB
+  execution:
+    max_bytes: 128MiB
+shutdown_timeout: 10s
