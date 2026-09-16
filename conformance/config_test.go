@@ -54,7 +54,6 @@ prometheus:
   address: %q
 storage:
   name: primary
-  database_id: db-primary
   driver: %s
   search:
     endpoints: %s

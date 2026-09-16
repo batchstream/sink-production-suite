@@ -21,7 +21,7 @@ func isolatedConfig(contents string, opts serverOptions, address, metrics string
 		return fmt.Sprintf("mode: gateway\ngrpc: {address: %q}\nprometheus: {address: %q}\ngateway:\n  routes_file: %q\n  reload_interval: 100ms\n  max_requests: 1024\n  max_requests_per_store: 128\nservice:\n  request:\n    timeout: %ds\n    max_operations: %d\n    max_read_bytes: %d\n", address, metrics, opts.routes, defaultInt(opts.requestTimeout, 2), defaultInt(opts.maxOps, 1000), defaultInt(opts.readBytes, 32<<20))
 	}
 	if opts.store != "" {
-		contents = strings.Replace(contents, "storage:\n  name: primary\n  database_id: db-primary", "storage:\n  name: "+opts.store+"\n  database_id: db-"+opts.store, 1)
+		contents = strings.Replace(contents, "storage:\n  name: primary", "storage:\n  name: "+opts.store, 1)
 	}
 	return contents
 }
@@ -60,7 +60,7 @@ func independentBackend(t *testing.T, current backend) backend {
 func isolatedRoutes(t *testing.T, primary, secondary *candidate) string {
 	t.Helper()
 	file := filepath.Join(t.TempDir(), "routes.yaml")
-	data := fmt.Sprintf("routes:\n  - store: primary\n    database_id: db-primary\n    target: %s\n    tls: {insecure: true}\n  - store: secondary\n    database_id: db-secondary\n    target: %s\n    tls: {insecure: true}\n", primary.address, secondary.address)
+	data := fmt.Sprintf("routes:\n  - store: primary\n    target: %s\n    tls: {insecure: true}\n  - store: secondary\n    target: %s\n    tls: {insecure: true}\n", primary.address, secondary.address)
 	if err := os.WriteFile(file, []byte(data), 0600); err != nil {
 		t.Fatal(err)
 	}
