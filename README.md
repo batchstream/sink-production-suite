@@ -269,7 +269,7 @@ Sink candidate; see Sink's
 [configuration migration guide](https://github.com/liran/sink/blob/main/docs/configuration-migration.md).
 
 Historical regression sensitivity explicitly selects frozen legacy configuration
-fixtures through `SINK_CONFORMANCE_LEGACY_CONFIG=1` only when launching old
+fixtures through `SINK_CONFORMANCE_LEGACY_CONFIG=1` (flat) or `grouped` only when launching old
 binaries. Current candidate checks do not use that switch. This keeps historical
 failures tied to the expected behavioral assertion rather than a startup error.
 

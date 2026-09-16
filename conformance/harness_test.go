@@ -83,7 +83,7 @@ type candidate struct {
 
 func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	t.Helper()
-	if opts.secondary != nil && os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") != "1" {
+	if opts.secondary != nil && os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "" {
 		return startStoreTopology(t, opts)
 	}
 	binary := os.Getenv("SINK_SERVER_BINARY")
@@ -102,7 +102,7 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 		}
 	}
 	mode := "engine"
-	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "1" {
+	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") != "" {
 		mode = "server"
 	}
 	if opts.role != "" {
@@ -120,6 +120,9 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 		t.Fatal(err)
 	}
 	configFormat := groupedCandidateConfig
+	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "grouped" {
+		configFormat = groupedLegacyCandidateConfig
+	}
 	var readLimit any = readableByteSize(defaultInt(opts.readBytes, 32<<20))
 	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "1" {
 		configFormat = legacyCandidateConfig
@@ -266,6 +269,9 @@ func candidateKafkaConfig(opts serverOptions) string {
 		return ""
 	}
 	format := groupedCandidateKafka
+	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "grouped" {
+		format = groupedLegacyCandidateKafka
+	}
 	if os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "1" {
 		format = legacyCandidateKafka
 	}
@@ -273,7 +279,7 @@ func candidateKafkaConfig(opts serverOptions) string {
 }
 
 func candidateSecondaryConfig(opts serverOptions) string {
-	if opts.secondary == nil || os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") != "1" {
+	if opts.secondary == nil || os.Getenv("SINK_CONFORMANCE_LEGACY_CONFIG") == "" {
 		return ""
 	}
 	return fmt.Sprintf(`  - name: secondary
