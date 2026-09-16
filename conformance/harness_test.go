@@ -78,6 +78,7 @@ type candidate struct {
 	client  *sink.Client
 	address string
 	metrics string
+	health  string
 	command *exec.Cmd
 	done    <-chan error
 	stopped bool
@@ -92,9 +93,10 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	if binary == "" {
 		t.Fatal("SINK_SERVER_BINARY is required; use make test-conformance")
 	}
-	addresses := freeAddresses(t, 2)
+	addresses := freeAddresses(t, 3)
 	grpcAddress := addresses[0]
 	metricsAddress := addresses[1]
+	healthAddress := addresses[2]
 	dir := t.TempDir()
 	if root := os.Getenv("SINK_CONFORMANCE_ARTIFACTS"); root != "" {
 		var err error
@@ -125,6 +127,7 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 		defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
 	config = strings.Replace(config, "  execution:\n", "  execution:\n"+candidateExecutionConfig(opts), 1)
 	config = isolatedConfig(config, opts, grpcAddress, metricsAddress)
+	config += fmt.Sprintf("health: {address: %q}\n", healthAddress)
 	configPath := filepath.Join(dir, "server.yaml")
 	if err := os.WriteFile(filepath.Join(dir, "test-name.txt"), []byte(t.Name()), 0600); err != nil {
 		t.Fatal(err)
@@ -145,7 +148,7 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	}
 	done := make(chan error, 1)
 	go func() { done <- command.Wait() }()
-	server := &candidate{address: grpcAddress, metrics: "http://" + metricsAddress + "/metrics", command: command, done: done}
+	server := &candidate{address: grpcAddress, metrics: "http://" + metricsAddress + "/metrics", health: "http://" + healthAddress, command: command, done: done}
 	t.Cleanup(func() {
 		if !server.stopped {
 			_ = command.Process.Signal(os.Interrupt)
@@ -223,7 +226,7 @@ func (c *candidate) waitCapability(t *testing.T, service string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
-	endpoint := strings.TrimSuffix(c.metrics, "/metrics") + "/readyz"
+	endpoint := c.health + "/readyz"
 	if service != "" {
 		endpoint += "?service=" + url.QueryEscape(service)
 	}

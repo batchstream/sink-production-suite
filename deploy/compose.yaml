@@ -51,6 +51,7 @@ services:
           - engine-elasticsearch-async
     ports:
       - 127.0.0.1:19108:9090
+      - 127.0.0.1:20108:8081
     volumes:
       - ./deploy/engines/elasticsearch-async.yaml:/etc/sink/config.yaml:ro
   engine-elasticsearch-async-b:
@@ -70,6 +71,7 @@ services:
           - engine-elasticsearch-async
     ports:
       - 127.0.0.1:19109:9090
+      - 127.0.0.1:20109:8081
     volumes:
       - ./deploy/engines/elasticsearch-async.yaml:/etc/sink/config.yaml:ro
   engine-elasticsearch-sync-a:
@@ -87,6 +89,7 @@ services:
           - engine-elasticsearch-sync
     ports:
       - 127.0.0.1:19106:9090
+      - 127.0.0.1:20106:8081
     volumes:
       - ./deploy/engines/elasticsearch-sync.yaml:/etc/sink/config.yaml:ro
   engine-elasticsearch-sync-b:
@@ -104,6 +107,7 @@ services:
           - engine-elasticsearch-sync
     ports:
       - 127.0.0.1:19107:9090
+      - 127.0.0.1:20107:8081
     volumes:
       - ./deploy/engines/elasticsearch-sync.yaml:/etc/sink/config.yaml:ro
   engine-mongodb-async-a:
@@ -123,6 +127,7 @@ services:
           - engine-mongodb-async
     ports:
       - 127.0.0.1:19112:9090
+      - 127.0.0.1:20112:8081
     volumes:
       - ./deploy/engines/mongodb-async.yaml:/etc/sink/config.yaml:ro
   engine-mongodb-async-b:
@@ -142,6 +147,7 @@ services:
           - engine-mongodb-async
     ports:
       - 127.0.0.1:19113:9090
+      - 127.0.0.1:20113:8081
     volumes:
       - ./deploy/engines/mongodb-async.yaml:/etc/sink/config.yaml:ro
   engine-mongodb-sync-a:
@@ -159,6 +165,7 @@ services:
           - engine-mongodb-sync
     ports:
       - 127.0.0.1:19110:9090
+      - 127.0.0.1:20110:8081
     volumes:
       - ./deploy/engines/mongodb-sync.yaml:/etc/sink/config.yaml:ro
   engine-mongodb-sync-b:
@@ -176,6 +183,7 @@ services:
           - engine-mongodb-sync
     ports:
       - 127.0.0.1:19111:9090
+      - 127.0.0.1:20111:8081
     volumes:
       - ./deploy/engines/mongodb-sync.yaml:/etc/sink/config.yaml:ro
   engine-primary-a:
@@ -195,6 +203,7 @@ services:
           - engine-primary
     ports:
       - 127.0.0.1:19100:9090
+      - 127.0.0.1:20100:8081
     volumes:
       - ./deploy/engines/primary.yaml:/etc/sink/config.yaml:ro
   engine-primary-b:
@@ -214,6 +223,7 @@ services:
           - engine-primary
     ports:
       - 127.0.0.1:19101:9090
+      - 127.0.0.1:20101:8081
     volumes:
       - ./deploy/engines/primary.yaml:/etc/sink/config.yaml:ro
   engine-secondary-a:
@@ -233,6 +243,7 @@ services:
           - engine-secondary
     ports:
       - 127.0.0.1:19102:9090
+      - 127.0.0.1:20102:8081
     volumes:
       - ./deploy/engines/secondary.yaml:/etc/sink/config.yaml:ro
   engine-secondary-b:
@@ -252,6 +263,7 @@ services:
           - engine-secondary
     ports:
       - 127.0.0.1:19103:9090
+      - 127.0.0.1:20103:8081
     volumes:
       - ./deploy/engines/secondary.yaml:/etc/sink/config.yaml:ro
   engine-sync-only-a:
@@ -269,6 +281,7 @@ services:
           - engine-sync-only
     ports:
       - 127.0.0.1:19104:9090
+      - 127.0.0.1:20104:8081
     volumes:
       - ./deploy/engines/sync-only.yaml:/etc/sink/config.yaml:ro
   engine-sync-only-b:
@@ -286,6 +299,7 @@ services:
           - engine-sync-only
     ports:
       - 127.0.0.1:19105:9090
+      - 127.0.0.1:20105:8081
     volumes:
       - ./deploy/engines/sync-only.yaml:/etc/sink/config.yaml:ro
   gateway-a:
@@ -317,9 +331,9 @@ services:
     ports:
       - 127.0.0.1:18080:8080
       - 127.0.0.1:19090:9090
+      - 127.0.0.1:20090:8081
     volumes:
       - ./deploy/gateway.yaml:/etc/sink/config.yaml:ro
-      - ./deploy/routing:/etc/sink/routing:ro
   gateway-b:
     command:
       - --config
@@ -344,9 +358,9 @@ services:
     ports:
       - 127.0.0.1:18081:8080
       - 127.0.0.1:19091:9090
+      - 127.0.0.1:20091:8081
     volumes:
       - ./deploy/gateway.yaml:/etc/sink/config.yaml:ro
-      - ./deploy/routing:/etc/sink/routing:ro
   gateway-conflict-a:
     profiles: [conflict]
     command: [--config, /etc/sink/config.yaml]
@@ -358,9 +372,9 @@ services:
     ports:
       - 127.0.0.1:18082:8080
       - 127.0.0.1:19093:9090
+      - 127.0.0.1:20093:8081
     volumes:
-      - ./deploy/gateway.yaml:/etc/sink/config.yaml:ro
-      - ./deploy/conflict-a:/etc/sink/routing:ro
+      - ./deploy/gateway-conflict-a.yaml:/etc/sink/config.yaml:ro
   gateway-conflict-b:
     profiles: [conflict]
     command: [--config, /etc/sink/config.yaml]
@@ -372,9 +386,9 @@ services:
     ports:
       - 127.0.0.1:18083:8080
       - 127.0.0.1:19094:9090
+      - 127.0.0.1:20094:8081
     volumes:
-      - ./deploy/gateway.yaml:/etc/sink/config.yaml:ro
-      - ./deploy/conflict-b:/etc/sink/routing:ro
+      - ./deploy/gateway-conflict-b.yaml:/etc/sink/config.yaml:ro
   kafka:
     environment:
       CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
@@ -576,6 +590,7 @@ services:
     init: true
     ports:
       - 127.0.0.1:19124:9090
+      - 127.0.0.1:20124:8081
     volumes:
       - ./deploy/workers/elasticsearch-async.yaml:/etc/sink/config.yaml:ro
   worker-mongodb-async:
@@ -591,6 +606,7 @@ services:
     init: true
     ports:
       - 127.0.0.1:19126:9090
+      - 127.0.0.1:20126:8081
     volumes:
       - ./deploy/workers/mongodb-async.yaml:/etc/sink/config.yaml:ro
   worker-primary:
@@ -606,6 +622,7 @@ services:
     init: true
     ports:
       - 127.0.0.1:19092:9090
+      - 127.0.0.1:20092:8081
     volumes:
       - ./deploy/workers/primary.yaml:/etc/sink/config.yaml:ro
   worker-secondary:
@@ -621,6 +638,7 @@ services:
     init: true
     ports:
       - 127.0.0.1:19121:9090
+      - 127.0.0.1:20121:8081
     volumes:
       - ./deploy/workers/secondary.yaml:/etc/sink/config.yaml:ro
 volumes:
