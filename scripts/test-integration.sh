@@ -183,7 +183,9 @@ git -C "${SINK_SERVER_DIR}" diff HEAD > "${artifacts}/server.patch"
 git -C "${suite_dir}" diff HEAD > "${artifacts}/suite.patch"
 "${compose[@]}" config > "${artifacts}/compose.yaml"
 go test "${suite_go_flags[@]}" ./contract ./internal/... -count=1
-"${compose[@]}" up --build --detach --wait --wait-timeout 180
+# Build the shared local tag before image-only services try to pull it.
+"${compose[@]}" build
+"${compose[@]}" up --detach --wait --wait-timeout 180
 wait_for_readiness
 SINK_CANDIDATE_ARTIFACTS="${artifacts}" \
 SINK_MONGODB_TEST_URI="mongodb://$("${compose[@]}" port mongodb 27017)/?directConnection=true" \
