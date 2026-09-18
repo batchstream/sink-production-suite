@@ -18,6 +18,10 @@ func TestScanProjectionSurvivesRealAdmissionRetry(t *testing.T) {
 			index := indexFor(t, store, "100ms")
 			proxy := proxyBackend(t, store)
 			opts := serverOptions{backend: proxy.backend, capacity: 1, readBytes: 1024, scanWait: 50 * time.Millisecond}
+			managed := usesMemoryAdmission(t)
+			if managed {
+				opts.memoryBytes = 64 << 10
+			}
 			server := startCandidate(t, opts)
 			padding := strings.Repeat("x", 4096)
 			for i := range 3 {
@@ -36,6 +40,9 @@ func TestScanProjectionSurvivesRealAdmissionRetry(t *testing.T) {
 			gate := proxy.hold("/"+index+"/_search", "match_all", 1)
 			t.Cleanup(gate.open)
 			countRequest := sink.CountRequest{Command: nativeSearch(index)}
+			if managed {
+				countRequest.Command.Payload = append(countRequest.Command.Payload, []byte(strings.Repeat(" ", 23<<10))...)
+			}
 			busy := countAsync(t.Context(), server.client, countRequest)
 			gate.wait(t)
 			type scanOutcome struct {
@@ -56,7 +63,11 @@ func TestScanProjectionSurvivesRealAdmissionRetry(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if metricForStore(metrics, `sink_admission_pool_rejected_total{pool="execution",reason="wait_timeout"}`, "primary") > 0 {
+				rejected := metricForStore(metrics, `sink_admission_pool_rejected_total{pool="execution",reason="wait_timeout"}`, "primary")
+				if managed {
+					rejected = memoryMetricTotal(metrics, "sink_memory_rejected_total")
+				}
+				if rejected > 0 {
 					break
 				}
 				if time.Now().After(deadline) {

@@ -61,6 +61,10 @@ func (c *candidate) waitDirectQueued(t *testing.T, store string, count int) map[
 }
 
 func TestDirectAdmissionQueuesBurstsAndIsolatesStores(t *testing.T) {
+	if usesMemoryAdmission(t) {
+		testMemoryDirectBursts(t)
+		return
+	}
 	for _, store := range searchBackends(t) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
@@ -122,6 +126,10 @@ func TestDirectAdmissionQueuesBurstsAndIsolatesStores(t *testing.T) {
 }
 
 func TestDirectAdmissionQueueBoundsAndCancellation(t *testing.T) {
+	if usesMemoryAdmission(t) {
+		testMemoryAdmissionCancellation(t)
+		return
+	}
 	for _, store := range searchBackends(t) {
 		for _, bound := range []string{"requests", "bytes"} {
 			t.Run(store.driver+"/"+bound, func(t *testing.T) {

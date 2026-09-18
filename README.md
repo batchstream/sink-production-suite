@@ -19,6 +19,14 @@ The [September 16 release coverage review](docs/current-release-review-2026-09-1
 maps the latest Scan, admission, Lua and configuration changes to required tests,
 including the matching Go SDK and historical performance-regression proofs.
 
+Admission scenarios negotiate the candidate's `memory` configuration support.
+Released servers retain the count/queue assertions. Candidates with demand-based
+admission instead prove small-request concurrency, real byte exhaustion without
+request access to the completion reserve, cancellation cleanup, Store isolation,
+Kafka progress and projected Scan retries. They observe `sink_memory_*` ownership
+and waiting gauges; cumulative counters and configured capacity are not treated
+as leaked memory. These are active replacement scenarios, not skipped tests.
+
 The suite verifies:
 
 1. Representative item and offer merge programs match the public Go reference

@@ -28,7 +28,12 @@ func TestPublishingSurvivesSynchronousSaturation(t *testing.T) {
 				t.Cleanup(gate.open)
 				synchronous := writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, put(t, blocked, `{"counter":1}`, sink.WriteUpsert))
 				gate.wait(t)
-				if server.metricSnapshot(t)["sink_in_flight_requests"] != 1 {
+				metrics := server.metricSnapshot(t)
+				occupied := metrics["sink_in_flight_requests"] == 1
+				if usesMemoryAdmission(t) {
+					occupied = memoryMetricTotal(metrics, "sink_memory_used_bytes") > 0
+				}
+				if !occupied {
 					t.Fatal("synchronous store capacity was not occupied")
 				}
 				// No worker exists yet. Acceptance must come from real Kafka while
@@ -73,6 +78,10 @@ func TestPublishingSurvivesSynchronousSaturation(t *testing.T) {
 }
 
 func TestSynchronousWritesSurvivePublisherSaturation(t *testing.T) {
+	if usesMemoryAdmission(t) {
+		testMemoryPublisherStall(t)
+		return
+	}
 	broker := startBroker(t)
 	for _, store := range searchBackends(t) {
 		t.Run(store.driver, func(t *testing.T) {
