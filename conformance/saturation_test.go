@@ -28,6 +28,10 @@ func TestSlowStoreSaturationIsBounded(t *testing.T) {
 		}
 		rounds = value
 	}
+	if usesMemoryAdmission(t) {
+		testMemoryStoreSaturation(t, rounds)
+		return
+	}
 	for _, store := range searchBackends(t) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "-1")
@@ -159,7 +163,7 @@ func (c *candidate) metricSnapshot(t *testing.T) map[string]float64 {
 	selected := make(map[string]float64)
 	for name, value := range metrics {
 		if name == "go_goroutines" || name == "go_memstats_heap_alloc_bytes" ||
-			strings.HasPrefix(name, "sink_in_flight_") || strings.HasPrefix(name, "sink_batcher_queued_") ||
+			strings.HasPrefix(name, "sink_memory_") || strings.HasPrefix(name, "sink_in_flight_") || strings.HasPrefix(name, "sink_batcher_queued_") ||
 			strings.HasPrefix(name, "sink_execution_queued_") || strings.HasPrefix(name, "sink_scan_queued_") ||
 			strings.HasPrefix(name, "sink_admission_pool_requests{") || strings.HasPrefix(name, "sink_admission_pool_bytes{") {
 			selected[name] = value
@@ -176,6 +180,9 @@ func (c *candidate) waitIdle(t *testing.T) map[string]float64 {
 		metrics = c.metricSnapshot(t)
 		idle := true
 		for name, value := range metrics {
+			if strings.HasPrefix(name, "sink_memory_") && !memoryOccupancyMetric(name) {
+				continue
+			}
 			if strings.HasPrefix(name, "sink_") && value != 0 {
 				idle = false
 			}

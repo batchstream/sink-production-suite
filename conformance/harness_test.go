@@ -70,6 +70,7 @@ type serverOptions struct {
 	luaInstructions int
 	endpoints       []string
 	executionBytes  int
+	memoryBytes     int
 	admissionQueue  *admissionQueueOptions
 	scanWait        time.Duration
 }
@@ -127,6 +128,9 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 		defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
 	config = strings.Replace(config, "  execution:\n", "  execution:\n"+candidateExecutionConfig(opts), 1)
 	config = isolatedConfig(config, opts, grpcAddress, metricsAddress)
+	if opts.memoryBytes > 0 {
+		config += fmt.Sprintf("memory: {max_bytes: %s, burst_percent: 10, wait_timeout: 2s}\n", readableByteSize(opts.memoryBytes))
+	}
 	config += fmt.Sprintf("health: {address: %q}\n", healthAddress)
 	configPath := filepath.Join(dir, "server.yaml")
 	if err := os.WriteFile(filepath.Join(dir, "test-name.txt"), []byte(t.Name()), 0600); err != nil {
