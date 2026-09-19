@@ -60,7 +60,7 @@ func candidateConfigs(opts serverOptions, addresses []string) (string, string) {
 	encoded, _ := json.Marshal(endpoints)
 	shared := fmt.Sprintf("name: %s\nstorage: {driver: %s, search: {endpoints: %s}}\n", store, opts.backend.driver, encoded)
 	if opts.broker != "" {
-		shared += fmt.Sprintf("kafka:\n  enabled: true\n  brokers: [%q]\n  topic: {name: %s, partitions: 1, replication_factor: 1}\n  dead_letter: {topic: %s.dlq}\n", opts.broker, opts.topic, opts.topic)
+		shared += fmt.Sprintf("kafka:\n  enabled: true\n  brokers: [%q]\n  partitions: 1\n  replication_factor: 1\n  topic: {name: %s}\n  dead_letter: {name: %s.dlq}\n", opts.broker, opts.topic, opts.topic)
 	}
 	return component.String(), shared
 }

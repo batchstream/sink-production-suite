@@ -8,9 +8,9 @@ kafka:
   brokers:
   - kafka-secondary:19092
   enabled: true
+  partitions: 8
+  replication_factor: 1
   topic:
     name: sink-production-secondary-mutations
-    partitions: 8
-    replication_factor: 1
   dead_letter:
-    topic: sink-production-secondary-mutations.dlq
+    name: sink-production-secondary-mutations.dlq

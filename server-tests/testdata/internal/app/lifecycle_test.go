@@ -46,9 +46,9 @@ storage:
 kafka:
   enabled: true
   brokers: [%q]
+  replication_factor: 1
   topic:
     name: mutations
-    replication_factor: 1
 `, backend.URL, broker.ListenAddrs()[0])
 			loaded, err := config.Decode(strings.NewReader(input), strings.NewReader(shared))
 			if err != nil {

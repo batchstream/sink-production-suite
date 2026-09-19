@@ -8,9 +8,9 @@ kafka:
   brokers:
   - kafka:19092
   enabled: true
+  partitions: 8
+  replication_factor: 1
   topic:
     name: sink-production-elasticsearch-mutations
-    partitions: 8
-    replication_factor: 1
   dead_letter:
-    topic: sink-production-elasticsearch-mutations.dlq
+    name: sink-production-elasticsearch-mutations.dlq

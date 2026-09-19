@@ -53,7 +53,7 @@ func TestHealthEndpointsDoNotRequirePrometheus(t *testing.T) {
 			sharedText = "name: primary\nstorage: {driver: opensearch, search: {endpoints: ['http://127.0.0.1:1']}}\n"
 			if mode == "worker" {
 				base += "consumer: {group_id: workers}\n"
-				sharedText += fmt.Sprintf("kafka:\n  enabled: true\n  brokers: [%q]\n  topic: {name: mutations, replication_factor: 1}\n", broker.ListenAddrs()[0])
+				sharedText += fmt.Sprintf("kafka:\n  enabled: true\n  brokers: [%q]\n  replication_factor: 1\n  topic: {name: mutations}\n", broker.ListenAddrs()[0])
 			}
 		}
 		for _, test := range tests {

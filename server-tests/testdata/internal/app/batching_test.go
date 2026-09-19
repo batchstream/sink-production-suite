@@ -35,10 +35,10 @@ func TestApplicationAlwaysBatchesGRPCRequests(t *testing.T) {
 				kafkaConfig = fmt.Sprintf(`kafka:
   enabled: true
   brokers: [%q]
+  replication_factor: 1
+  min_insync_replicas: 1
   topic:
     name: batching-test
-    replication_factor: 1
-    min_insync_replicas: 1
 `, broker.ListenAddrs()[0])
 			}
 			var calls atomic.Int32
