@@ -61,9 +61,8 @@ func TestProcessLoggingSurvivesCollectorOutage(t *testing.T) {
 			}))
 			t.Cleanup(collectorServer.Close)
 			logging := fmt.Sprintf(`logging:
-  level: info
-  components: {rpc: debug}
-  console: {enabled: false}
+  level: debug
+  console: {enabled: false, format: json}
   labels: {environment: qualification}
   otlp:
     enabled: true
