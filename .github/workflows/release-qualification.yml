@@ -52,7 +52,16 @@ jobs:
           cache: true
 
       - name: Run race tests
-        run: make -C suite test-race
+        run: make -C suite test-coverage
+
+      - name: Preserve unit coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: suite-unit-coverage
+          path: suite/.reports/coverage/
+          include-hidden-files: true
+          retention-days: 14
 
       - name: Run lint
         run: make -C suite lint

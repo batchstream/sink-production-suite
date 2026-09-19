@@ -1,0 +1,7 @@
+{
+  "github.com/liran/sink-production-suite/internal/fixture": 87,
+  "github.com/liran/sink-production-suite/internal/historycheck": 89,
+  "github.com/liran/sink-production-suite/internal/luatest": 75,
+  "github.com/liran/sink-production-suite/internal/reference": 98,
+  "github.com/liran/sink-production-suite/internal/testevents": 90
+}

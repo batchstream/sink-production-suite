@@ -52,6 +52,7 @@ func searchBackends(t *testing.T) []backend {
 }
 
 type serverOptions struct {
+	logging         string
 	role            string
 	store           string
 	routes          string
@@ -76,6 +77,7 @@ type serverOptions struct {
 }
 
 type candidate struct {
+	logPath string
 	client  *sink.Client
 	address string
 	metrics string
@@ -132,6 +134,7 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 		config += fmt.Sprintf("memory: {max_bytes: %s, burst_percent: 10, wait_timeout: 2s}\n", readableByteSize(opts.memoryBytes))
 	}
 	config += fmt.Sprintf("health: {address: %q}\n", healthAddress)
+	config += opts.logging
 	configPath := filepath.Join(dir, "server.yaml")
 	if err := os.WriteFile(filepath.Join(dir, "test-name.txt"), []byte(t.Name()), 0600); err != nil {
 		t.Fatal(err)
@@ -152,7 +155,7 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	}
 	done := make(chan error, 1)
 	go func() { done <- command.Wait() }()
-	server := &candidate{address: grpcAddress, metrics: "http://" + metricsAddress + "/metrics", health: "http://" + healthAddress, command: command, done: done}
+	server := &candidate{logPath: logPath, address: grpcAddress, metrics: "http://" + metricsAddress + "/metrics", health: "http://" + healthAddress, command: command, done: done}
 	t.Cleanup(func() {
 		if !server.stopped {
 			_ = command.Process.Signal(os.Interrupt)
