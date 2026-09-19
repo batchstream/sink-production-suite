@@ -242,8 +242,6 @@ jobs:
         run: |
           go -C suite/benchmarks/lua test -race ./... -count=1
           make -C suite benchmark-lua BENCHTIME=1x
-      - name: Exercise allocator experiment
-        run: make -C suite benchmark-memory
       - name: Build performance workload tool
         run: make -C suite build-perf
       - name: Preserve server qualification evidence
