@@ -194,8 +194,8 @@ SINK_SERVER_DIR=/path/to/sink make test-reliability
 ```
 
 This target allows 30 minutes for its expanded conformance prerequisite;
-ordinary conformance allows 20 minutes. `SINK_CONFORMANCE_TEST_TIMEOUT` can
-override that aggregate test timeout without changing request deadlines or
+ordinary conformance allows 30 minutes for the Gateway and Engine lifecycles.
+`SINK_CONFORMANCE_TEST_TIMEOUT` can override that aggregate test timeout without changing request deadlines or
 the two-hour workload duration.
 
 The nightly workflow lives in this repository. Sink can invoke it using the
