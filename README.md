@@ -387,10 +387,11 @@ matching fix; unlike old historical-binary gates, this is a current test oracle.
 
 ## Server test ownership
 
-Sink retains component unit tests. This repository owns all server backend and
-transport integrations, application assembly tests, fuzzing, microbenchmarks,
-allocator experiments and performance tooling. See [the runner and ownership
-rules](server-tests/README.md) and [benchmark measurements](docs/server-benchmarks.md).
+Sink retains component unit tests, input fuzzers and unit microbenchmarks. This
+repository owns server backend and transport integrations, application assembly
+tests, stateful scenario fuzzing, cross-component benchmarks, allocator
+experiments and performance tooling. See [the runner and ownership
+rules](server-tests/README.md) and [integration benchmark commands](docs/server-benchmarks.md).
 The reusable `server-qualification.yml` workflow is required by both repositories;
 Sink pins its workflow and source revision together. Migration preserves the
 existing combined coverage floors and named test requirements.

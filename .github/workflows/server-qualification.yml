@@ -207,8 +207,8 @@ jobs:
             suite/.reports/
           include-hidden-files: true
           retention-days: 14
-  fuzz-benchmarks:
-    name: Server fuzzing and benchmark smoke
+  benchmarks:
+    name: Integration benchmark and workload smoke
     timeout-minutes: 15
     runs-on: ubuntu-latest
     env:
@@ -236,9 +236,7 @@ jobs:
             suite/go.sum
             suite/tools/sink-perf/go.sum
             sink-server/go.sum
-      - name: Fuzz malformed server inputs
-        run: make -C suite fuzz-server
-      - name: Exercise every in-process benchmark
+      - name: Exercise Gateway-to-Engine benchmark
         run: make -C suite benchmark BENCHTIME=1x
       - name: Exercise standalone Lua benchmarks
         run: |
@@ -252,7 +250,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: server-fuzz-benchmarks
+          name: server-benchmarks
           path: |
             ${{ runner.temp }}/sink-candidate.*
             ${{ runner.temp }}/sink-conformance.*

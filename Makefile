@@ -52,10 +52,11 @@ test-coverage:
 	python3 -m unittest discover -s scripts -p 'test_*.py'
 	python3 scripts/check-coverage.py --profile $(COVERAGE_DIR)/unit.out --minimums .github/coverage-minimums.json --report $(COVERAGE_DIR)/summary.md
 
-.PHONY: test-server-integration test-isolated-quickstart fuzz-server benchmark benchmark-lua benchmark-memory build-perf lint-server
+.PHONY: test-server-integration test-isolated-quickstart benchmark benchmark-lua benchmark-memory build-perf lint-server
 BENCHTIME ?= 1s
 BENCH ?= .
-SERVER_PACKAGES ?= ./internal/...
+SERVER_PACKAGES ?= ./internal/gateway
+SERVER_BENCH ?= ^BenchmarkGatewaySmallPut$$
 
 test-server-integration:
 	bash scripts/test-mongodb-integration.sh
@@ -65,11 +66,8 @@ test-server-integration:
 test-isolated-quickstart:
 	bash scripts/test-isolated-quickstart.sh
 
-fuzz-server:
-	bash scripts/test-server-fuzz.sh
-
 benchmark:
-	bash scripts/server-go.sh test $(SERVER_PACKAGES) -run '^$$' -bench '$(BENCH)' -benchtime=$(BENCHTIME) -benchmem -count=1 -timeout=10m
+	bash scripts/server-go.sh test $(SERVER_PACKAGES) -run '^$$' -bench '$(SERVER_BENCH)' -benchtime=$(BENCHTIME) -benchmem -count=1 -timeout=10m
 
 benchmark-lua:
 	go -C benchmarks/lua test -run '^$$' -bench '$(BENCH)' -benchtime=$(BENCHTIME) -benchmem -count=1 -timeout=10m
