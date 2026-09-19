@@ -14,14 +14,19 @@ and patch, image ID, per-case JSON, container metrics and exit codes.
 
 | Component | CPU quota | Memory limit | Memory target |
 | --- | --- | --- | --- |
-| Gateway | 1 CPU | 256 MiB | GOMEMLIMIT=192 MiB |
-| Engine | 1 CPU | 768 MiB | GOMEMLIMIT=512 MiB |
+| Gateway | 1 CPU | 384 MiB | GOMEMLIMIT=256 MiB |
+| Engine | 1 CPU | 640 MiB | GOMEMLIMIT=512 MiB |
 | MongoDB replica-set member | 2 CPUs | 1 GiB | WiredTiger=256 MiB |
 
 Both Go containers use GOMAXPROCS=2 under their 1 CPU quota. Sink's total quota is
 2 CPUs / 1 GiB; database and host load-generator resources are additional. This
 is a disposable single-node database, not an election qualification. Stop other
-load tests when comparing results. Admission byte budgets do not equal RSS.
+load tests when comparing results. Process memory watermarks do not guarantee
+that an admitted workload cannot exhaust memory.
+
+These role allocations satisfy the startup minimum with the fixture's 4 MiB
+send limit. Historical runs used 256 MiB for Gateway and 768 MiB for Engine;
+preserve the recorded allocations when comparing those results.
 
 The matrix measures 1 KiB upserts across 16/32/64/128 concurrent callers,
 16-operation batches, merges, mixed reads/writes, Read and Count, 64 KiB returned
@@ -67,8 +72,9 @@ SINK_PERF_PROFILE=compare bash benchmarks/qualification/run.sh
 The `read-budgets` profile repeats mixed traffic, batched reads and large returned
 documents. The supplied pair lowers `grpc.max_send_message_bytes` from 4 MiB to
 1 MiB in both roles, reducing the largest response they can serve. The current
-memory allocator charges actual working allocations; the older worst-case
-response-reservation results do not apply unchanged. Validate real response
+process memory guard observes memory use and checks a startup minimum; lowering
+the transport ceiling also lowers that minimum. The older response-reservation
+results do not apply unchanged. Validate real response
 sizes and measure the current candidate before selecting a smaller transport limit:
 
 ```sh

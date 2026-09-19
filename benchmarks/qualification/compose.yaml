@@ -46,7 +46,7 @@ services:
     - --store-config
     - /etc/sink/store.yaml
     cpus: 1
-    mem_limit: 768m
+    mem_limit: 640m
     environment:
       GOMEMLIMIT: 512MiB
       GOMAXPROCS: '2'
@@ -65,9 +65,9 @@ services:
     - --config
     - /etc/sink/gateway.yaml
     cpus: 1
-    mem_limit: 256m
+    mem_limit: 384m
     environment:
-      GOMEMLIMIT: 192MiB
+      GOMEMLIMIT: 256MiB
       GOMAXPROCS: '2'
     depends_on:
     - engine
