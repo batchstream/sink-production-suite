@@ -53,6 +53,10 @@ Set `SINK_PERF_ENGINE_CONFIG` or `SINK_PERF_GATEWAY_CONFIG` to absolute paths to
 compare configuration choices with the same images and container limits. Retain that configuration
 with the results; a shorter batching wait can reduce latency while increasing
 backend calls, so measure both small RPCs and explicit batches before tuning.
+The ordinary Engine fixture inherits the candidate's batch-size default (32
+starting with the role-configuration redesign). Historical runs used their
+recorded candidate defaults, so preserve an explicit `batching.max_operations`
+when isolating a code change from a configuration change.
 The provided `engine-low-latency.yaml` changes only the batching wait to 500µs:
 
 ```sh
@@ -61,11 +65,11 @@ SINK_PERF_PROFILE=compare bash benchmarks/qualification/run.sh
 ```
 
 The `read-budgets` profile repeats mixed traffic, batched reads and large returned
-documents. Gateway reserves the configured response allowance for each active
-request. Reducing `service.request.max_read_bytes` in both roles can admit more
-small-document requests under the same memory budget, but also lowers the largest
-per-RPC response they can serve. Validate real response sizes before changing it.
-For example, the supplied pair changes only that limit from 4 MiB to 1 MiB:
+documents. The supplied pair lowers `grpc.max_send_message_bytes` from 4 MiB to
+1 MiB in both roles, reducing the largest response they can serve. The current
+memory allocator charges actual working allocations; the older worst-case
+response-reservation results do not apply unchanged. Validate real response
+sizes and measure the current candidate before selecting a smaller transport limit:
 
 ```sh
 SINK_PERF_ENGINE_CONFIG="$PWD/benchmarks/qualification/engine-small-responses.yaml" \
