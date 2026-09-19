@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directories:
+      - /benchmarks/lua
+      - /tools/sink-perf
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      go-minor-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch

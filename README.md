@@ -118,8 +118,8 @@ imply a completed long run or multi-node production certification.
 
 The [post-release coverage matrix](docs/post-release-review-2026-09-14.md) maps
 all changes through the September 14 candidate to required regression evidence.
-Production and sustained qualification now run the candidate's complete ordinary
-race suite, real MongoDB/Elasticsearch/OpenSearch storage suites and bounded
+Production and sustained qualification now run the candidate's unit tests plus suite-owned component
+race tests, real MongoDB/Elasticsearch/OpenSearch storage suites and bounded
 service integration in addition to the public API suite. Named test events reject
 missing or skipped regressions. New public scenarios verify Lua budget isolation,
 managed query safety/failover, lookahead byte budgets and BSON fidelity through
@@ -352,16 +352,16 @@ so well-covered helpers cannot hide a regression in a critical package. Floors
 allow small execution/platform variation and should increase with new tests,
 not be lowered to make an unrelated change pass.
 
-Candidate qualification also retains `unit.out`, `mongodb.out`,
+Candidate qualification also retains `local.out`, `mongodb.out`,
 `elasticsearch.out`, `opensearch.out` and bounded service-integration profiles in
-its evidence directories. The candidate ordinary suite is checked against
+its evidence directories. The combined candidate/component suite is checked against
 `.github/candidate-coverage-minimums.json`, including logging. This gate runs
 `Test`/`Example` only, so its queue baseline excludes decoder fuzz seeds that
 intentionally skip invalid inputs. To inspect the
 union, repeat `--profile` with files from the **same candidate revision**:
 
 ```sh
-python3 scripts/check-coverage.py --profile /path/unit.out --profile /path/mongodb.out --report /path/combined.md
+python3 scripts/check-coverage.py --profile /path/local.out --profile /path/mongodb.out --report /path/combined.md
 ```
 
 These profiles instrument Go test processes, not the separately launched
@@ -374,7 +374,7 @@ readback must continue. After receiver recovery, application-level failures and
 forwarded stream diagnostics must arrive without process restart, document
 contents must remain absent, and both processes must flush their final lifecycle
 events on graceful exit. Exporter failures remain visible on stderr even when
-ordinary console logging is disabled. Candidate unit gates additionally require
+ordinary console logging is disabled. Candidate component gates additionally require
 both OTLP transports, TLS refusal to downgrade, bounded queue loss and shutdown.
 
 The process test detected an actual diagnostic gap: memory-managed Gateway
@@ -384,3 +384,14 @@ with zero operations/failures. The server regression requires the original
 managed response to be returned unchanged while recording its underlying failure.
 The standalone process assertion failed on Sink `49d87e2` and passed after the
 matching fix; unlike old historical-binary gates, this is a current test oracle.
+
+## Server test ownership
+
+Sink retains component unit tests, input fuzzers and unit microbenchmarks. This
+repository owns server backend and transport integrations, application assembly
+tests, stateful scenario fuzzing, cross-component benchmarks, allocator
+experiments and performance tooling. See [the runner and ownership
+rules](server-tests/README.md) and [integration benchmark commands](docs/server-benchmarks.md).
+The reusable `server-qualification.yml` workflow is required by both repositories;
+Sink pins its workflow and source revision together. Migration preserves the
+existing combined coverage floors and named test requirements.

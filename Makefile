@@ -10,7 +10,7 @@ test-race:
 	go test -race ./... -count=1
 
 test-candidate:
-	bash scripts/test-candidate.sh unit
+	bash scripts/test-candidate.sh local
 
 fuzz:
 	FUZZ_TIME=$(FUZZ_TIME) bash scripts/test-fuzz.sh FuzzProductMergeSequence
@@ -49,5 +49,39 @@ COVERAGE_DIR ?= .reports/coverage
 test-coverage:
 	@mkdir -p $(COVERAGE_DIR)
 	go test -mod=readonly -race -covermode=atomic -coverpkg=./... -coverprofile=$(COVERAGE_DIR)/unit.out -count=1 -timeout=10m -json ./... > $(COVERAGE_DIR)/unit.jsonl
-	python3 -m unittest discover -s scripts -p 'test_coverage.py'
+	python3 -m unittest discover -s scripts -p 'test_*.py'
 	python3 scripts/check-coverage.py --profile $(COVERAGE_DIR)/unit.out --minimums .github/coverage-minimums.json --report $(COVERAGE_DIR)/summary.md
+
+.PHONY: test-server-integration test-isolated-quickstart benchmark benchmark-lua benchmark-memory build-perf lint-server
+BENCHTIME ?= 1s
+BENCH ?= .
+SERVER_PACKAGES ?= ./internal/gateway
+SERVER_BENCH ?= ^BenchmarkGatewaySmallPut$$
+
+test-server-integration:
+	bash scripts/test-mongodb-integration.sh
+	bash scripts/test-search-integration.sh elasticsearch
+	bash scripts/test-search-integration.sh opensearch
+
+test-isolated-quickstart:
+	bash scripts/test-isolated-quickstart.sh
+
+benchmark:
+	bash scripts/server-go.sh test $(SERVER_PACKAGES) -run '^$$' -bench '$(SERVER_BENCH)' -benchtime=$(BENCHTIME) -benchmem -count=1 -timeout=10m
+
+benchmark-lua:
+	go -C benchmarks/lua test -run '^$$' -bench '$(BENCH)' -benchtime=$(BENCHTIME) -benchmem -count=1 -timeout=10m
+
+benchmark-memory:
+	bash scripts/server-go.sh test ./internal/capacity -tags=memoryexperiment -run '^TestBurstExperiment$$' -count=1 -v -timeout=10m
+
+build-perf:
+	@mkdir -p .reports/bin
+	bash scripts/perf-go.sh build -o $(CURDIR)/.reports/bin/sink-perf .
+
+lint-server:
+	bash scripts/server-go.sh vet -tags=integration ./...
+
+.PHONY: test-perf
+test-perf:
+	bash scripts/perf-go.sh test -race ./... -count=1 -timeout=3m

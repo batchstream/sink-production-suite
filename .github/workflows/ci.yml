@@ -20,7 +20,7 @@ jobs:
   reliability-gate:
     name: Suite reliability gate
     if: always()
-    needs: [resolve-server, test, production, fuzz]
+    needs: [resolve-server, test, production, fuzz, server-qualification]
     runs-on: ubuntu-latest
     steps:
       - name: Require every qualification job to pass
@@ -144,3 +144,10 @@ jobs:
             ${{ runner.temp }}/stateful-fuzz.log
             contract/testdata/fuzz
           retention-days: 14
+
+  server-qualification:
+    needs: resolve-server
+    uses: ./.github/workflows/server-qualification.yml
+    with:
+      suite_ref: ${{ github.sha }}
+      sink_ref: ${{ needs.resolve-server.outputs.revision }}

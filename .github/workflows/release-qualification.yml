@@ -114,3 +114,9 @@ jobs:
             ${{ runner.temp }}/sink-candidate.*
             ${{ runner.temp }}/sink-quorum.*
           retention-days: 14
+
+  server-qualification:
+    uses: ./.github/workflows/server-qualification.yml
+    with:
+      suite_ref: ${{ inputs.suite_ref }}
+      sink_ref: ${{ inputs.sink_ref }}

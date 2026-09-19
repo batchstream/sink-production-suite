@@ -63,7 +63,7 @@ go run ./cmd/check-test-events --file "${SINK_CONFORMANCE_ARTIFACTS}/client-unit
   --require 'TestScanRetriesAdmissionWithIdenticalPage,TestScanAdmissionRetriesAreBoundedOrDisabled,TestScanDoesNotRetryUnmarkedOrOtherFailures,TestScanRetryBackoffHonorsCancellationAndTotalTimeout,TestScanProjectionWirePresenceAndValidation'
 # Exercise real loopback DNS with healthy scale-out, scale-in, SERVFAIL and
 # default/custom refresh intervals; these opt-in tests need no storage backend.
-go -C "${SINK_SERVER_DIR}" test -mod=readonly -race -tags=integration ./internal/gateway \
+SINK_CANDIDATE_ARTIFACTS="${SINK_CONFORMANCE_ARTIFACTS}" bash "${script_dir}/server-go.sh" test -race -tags=integration ./internal/gateway \
   -run '^TestGateway(DiscoversDNSScaleChanges|DNSWithdrawalDrainBoundary)$' \
   -count=1 -timeout=2m -json > "${SINK_CONFORMANCE_ARTIFACTS}/gateway-dns-tests.jsonl"
 go run ./cmd/check-test-events --file "${SINK_CONFORMANCE_ARTIFACTS}/gateway-dns-tests.jsonl" \
