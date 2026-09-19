@@ -207,7 +207,7 @@ func TestReadBudgetsBelongToOriginalRPC(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "-1")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, batchOps: 2, batchWait: 2000, readBytes: 256}
+			opts := serverOptions{backend: proxy.backend, batchOps: 2, batchWait: 2000, readBytes: 256 + 2*1280}
 			server := startCandidate(t, opts)
 			a, b := addressFor(t, index, "a"), addressFor(t, index, "b")
 			raw := `{"value":"` + strings.Repeat("x", 80) + `"}`

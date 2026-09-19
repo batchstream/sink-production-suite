@@ -50,7 +50,7 @@ done
 primary="$("${compose[@]}" exec -T mongo1 mongosh --quiet --eval 'db.hello().primary')"
 primary="${primary%:27017}"
 case "${primary}" in mongo1|mongo2|mongo3) ;; *) echo "invalid primary: ${primary}" >&2; exit 1 ;; esac
-address="$("${compose[@]}" port engine 8080)"
+address="$("${compose[@]}" port gateway 8080)"
 "${artifacts}/sink-perf" -address "${address}" -dataset perf-quorum \
   -workload merge -keys 128 -concurrency 8 -duration 75s -timeout 1s \
   > "${artifacts}/load.json" 2> "${artifacts}/load.log" &

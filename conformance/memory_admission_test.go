@@ -26,7 +26,7 @@ func usesMemoryAdmission(t *testing.T) bool {
 	if binary == "" {
 		t.Fatal("SINK_SERVER_BINARY is required")
 	}
-	config := "mode: gateway\nmemory: {burst_percent: 10}\ngateway:\n  routes:\n    - store: primary\n      target: 127.0.0.1:8080\n      tls: {insecure: true}\n"
+	config := "mode: gateway\nmemory: {burst_percent: 10}\nforwarding:\n  routes:\n    - store: primary\n      target: 127.0.0.1:8080\n      tls: {insecure: true}\n"
 	filename := filepath.Join(t.TempDir(), "memory-capability.yaml")
 	if err := os.WriteFile(filename, []byte(config), 0600); err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func testMemoryAdmissionCancellation(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, capacity: 1, memoryBytes: 64 << 10}
+			opts := serverOptions{backend: proxy.backend, capacity: 1, memoryBytes: 320 << 10}
 			server := startCandidate(t, opts)
 			operation := put(t, addressFor(t, index, "record"), `{"counter":1}`, sink.WriteUpsert)
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, operation), 1)

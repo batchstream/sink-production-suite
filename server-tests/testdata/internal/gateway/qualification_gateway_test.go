@@ -81,7 +81,7 @@ func serveEngine(t testing.TB, backend forward.EngineServer, public ...sink.Sink
 }
 
 func routeText(engines ...fixtureEngine) string {
-	text := "mode: gateway\ngateway:\n  routes:\n"
+	text := "mode: gateway\nforwarding:\n  routes:\n"
 	for _, e := range engines {
 		text += fmt.Sprintf("    - store: %s\n      target: %s\n      tls: {insecure: true}\n", e.store, e.target)
 	}
@@ -94,13 +94,13 @@ func testGateway(t testing.TB, maximum int, engines ...fixtureEngine) *Server {
 	if err := os.WriteFile(path, []byte(routeText(engines...)), 0600); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := config.Load(path)
+	loaded, err := config.Load(path, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	settings := config.Gateway{Routes: loaded.Gateway.Routes, DNSRefreshInterval: time.Second, IdleTimeout: time.Minute, MaxConnections: 10, MaxRequests: 32, MaxRequestsPerStore: 32, MaxBytes: 256 << 20, MaxFanout: 2}
 	request := config.Request{Timeout: 3 * time.Second, MaxOperations: 1000, MaxReadBytes: maximum}
-	opts := Options{Gateway: settings, Request: request, MaxMessageBytes: 64 << 20}
+	opts := Options{Gateway: settings, Request: request, MaxResponseBytes: maximum, MaxMessageBytes: 64 << 20}
 	server, err := New(opts)
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +127,7 @@ func put(store, key string, returnDocument bool) *sink.WriteOperation {
 func TestCrossStorePublicRecordsAndPartialFailure(t *testing.T) {
 	a := testEngine(t, "a", 4096)
 	b := testEngine(t, "b", 4096)
-	gateway := testGateway(t, 4096, a, b)
+	gateway := testGateway(t, 8192, a, b)
 	write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", false), put("b", "two", false), put("missing", "three", false), put("a", "one", false)}}
 	response, err := gateway.Write(t.Context(), write)
 	if err != nil {
@@ -174,7 +174,7 @@ func TestCrossStorePublicRecordsAndPartialFailure(t *testing.T) {
 func TestCrossStoreReturnBudgetCheckedBeforeCommit(t *testing.T) {
 	a := testEngine(t, "a", 200)
 	b := testEngine(t, "b", 200)
-	gateway := testGateway(t, 200, a, b)
+	gateway := testGateway(t, 200+2*1280, a, b)
 	write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", true), put("b", "two", true)}}
 	response, err := gateway.Write(t.Context(), write)
 	if err != nil {
@@ -194,7 +194,7 @@ func TestCrossStoreReturnBudgetCheckedBeforeCommit(t *testing.T) {
 func TestCrossStoreReadBudgetAndRepeatedKeys(t *testing.T) {
 	a := testEngine(t, "a", 300)
 	b := testEngine(t, "b", 300)
-	gateway := testGateway(t, 300, a, b)
+	gateway := testGateway(t, 300+3*1280, a, b)
 	write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", false), put("b", "two", false)}}
 	if _, err := gateway.Write(t.Context(), write); err != nil {
 		t.Fatal(err)
@@ -360,7 +360,7 @@ func TestConnectionsAreLazyBoundedAndExpire(t *testing.T) {
 func TestGatewayAdmissionAndConcurrentBudgets(t *testing.T) {
 	a := testEngine(t, "a", 200)
 	b := testEngine(t, "b", 200)
-	gateway := testGateway(t, 200, a, b)
+	gateway := testGateway(t, 200+2*1280, a, b)
 	var work sync.WaitGroup
 	for i := range 24 {
 		work.Go(func() {
@@ -391,7 +391,7 @@ func TestGatewayRoutesChangeOnlyAfterRestart(t *testing.T) {
 	if err := os.WriteFile(path, []byte(routeText(initial)), 0600); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := config.Load(path)
+	loaded, err := config.Load(path, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -405,7 +405,7 @@ func TestGatewayRoutesChangeOnlyAfterRestart(t *testing.T) {
 	if err := os.WriteFile(path, []byte(routeText(replacement)), 0600); err != nil {
 		t.Fatal(err)
 	}
-	loaded, err = config.Load(path)
+	loaded, err = config.Load(path, "")
 	if err != nil {
 		t.Fatal(err)
 	}

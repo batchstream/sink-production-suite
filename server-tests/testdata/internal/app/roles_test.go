@@ -9,7 +9,7 @@ import (
 )
 
 func TestGatewayDoesNotConstructExecutionDependencies(t *testing.T) {
-	loaded, err := config.Decode(strings.NewReader("mode: gateway\ngrpc: {address: '127.0.0.1:0'}\nhealth: {address: '127.0.0.1:0'}\ngateway:\n  routes:\n    - store: a\n      target: 127.0.0.1:1\n      tls: {insecure: true}\n"))
+	loaded, err := config.Decode(strings.NewReader("mode: gateway\ngrpc: {address: '127.0.0.1:0'}\nhealth: {address: '127.0.0.1:0'}\nforwarding:\n  routes:\n    - store: a\n      target: 127.0.0.1:1\n      tls: {insecure: true}\n"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestGatewayDoesNotConstructExecutionDependencies(t *testing.T) {
 	}
 }
 func TestEngineProcessReadinessDoesNotHideSurvivingCapabilities(t *testing.T) {
-	loaded, err := config.Decode(strings.NewReader("mode: engine\ngrpc: {address: '127.0.0.1:0'}\nhealth: {address: '127.0.0.1:0'}\nstorage:\n  name: a\n  driver: opensearch\n  search: {endpoints: ['http://127.0.0.1:1']}\n"))
+	loaded, err := config.Decode(strings.NewReader("mode: engine\ngrpc: {address: '127.0.0.1:0'}\nhealth: {address: '127.0.0.1:0'}"), strings.NewReader("name: a\nstorage:\n  driver: opensearch\n  search: {endpoints: ['http://127.0.0.1:1']}\n"))
 	if err != nil {
 		t.Fatal(err)
 	}

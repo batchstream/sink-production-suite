@@ -314,6 +314,8 @@ func TestSynchronousStorageStreamsLargeRecords(t *testing.T) {
 				backend := &syncCapacityStorage{Storage: fixture.backend}
 				server := completionServer(t, backend)
 				server.server.maxReadBytes = 1024
+				server.server.maxSnapshotBytes = 1024
+				server.server.maxOutputBytes = 1024
 				memoryOptions := capacity.Options{Bytes: 128 << 20, BurstPercent: 10, WaitTimeout: time.Second}
 				pool, err := capacity.New(memoryOptions)
 				if err != nil {

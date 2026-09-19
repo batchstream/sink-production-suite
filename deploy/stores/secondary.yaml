@@ -1,0 +1,16 @@
+name: secondary
+storage:
+  driver: opensearch
+  search:
+    endpoints:
+    - http://opensearch-secondary:9200
+kafka:
+  brokers:
+  - kafka-secondary:19092
+  enabled: true
+  topic:
+    name: sink-production-secondary-mutations
+    partitions: 8
+    replication_factor: 1
+  dead_letter:
+    topic: sink-production-secondary-mutations.dlq

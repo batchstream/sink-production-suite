@@ -1,0 +1,6 @@
+name: sync-only
+storage:
+  driver: opensearch
+  search:
+    endpoints:
+    - http://opensearch-sync-only:9200

@@ -1,0 +1,16 @@
+name: mongodb-async
+storage:
+  driver: mongodb
+  mongodb:
+    metadata_field: __sink
+    uri: mongodb://mongodb-async:27017/?replicaSet=rs0
+kafka:
+  brokers:
+  - kafka-secondary:19092
+  enabled: true
+  topic:
+    name: sink-production-mongodb-mutations
+    partitions: 8
+    replication_factor: 1
+  dead_letter:
+    topic: sink-production-mongodb-mutations.dlq

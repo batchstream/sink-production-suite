@@ -4,18 +4,15 @@ grpc:
   max_send_message_bytes: 64MiB
 mode: engine
 health:
-  address: ":8081"
+  address: :8081
 prometheus:
   enabled: true
   address: :9090
-service:
-  batching:
-    max_bytes: 16MiB
-    max_operations: 1000
-    max_wait: 2ms
-    queue:
-      max_bytes: 128MiB
-      max_operations: 10000
+shutdown_timeout: 15s
+execution:
+  mongodb:
+    max_concurrent_groups: 16
+    max_concurrent_writes: 64
   merge:
     lua:
       max_cached_programs: 256
@@ -24,27 +21,10 @@ service:
       max_source_bytes: 64KiB
       timeout: 100ms
     max_attempts: 50
-  request:
-    max_operations: 1000
-shutdown_timeout: 15s
-storage:
-  driver: mongodb
-  kafka:
-    brokers:
-      - kafka-secondary:19092
-    consumer:
-      max_poll_records: 500
-      retry:
-        backoff: 100ms
-        max_backoff: 10s
-    enabled: true
-    topic:
-      name: sink-production-mongodb-mutations
-      partitions: 8
-      replication_factor: 1
-  mongodb:
-    max_concurrent_groups: 16
-    max_concurrent_writes: 64
-    metadata_field: __sink
-    uri: mongodb://mongodb-async:27017/?replicaSet=rs0
-  name: mongodb-async
+batching:
+  max_bytes: 16MiB
+  max_operations: 1000
+  max_wait: 2ms
+  queue:
+    max_bytes: 128MiB
+    max_operations: 10000

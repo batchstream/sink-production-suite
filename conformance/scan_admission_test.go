@@ -17,10 +17,10 @@ func TestScanProjectionSurvivesRealAdmissionRetry(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, capacity: 1, readBytes: 1024, scanWait: 50 * time.Millisecond}
+			opts := serverOptions{backend: proxy.backend, capacity: 1, readBytes: 2048, scanWait: 50 * time.Millisecond}
 			managed := usesMemoryAdmission(t)
 			if managed {
-				opts.memoryBytes = 64 << 10
+				opts.memoryBytes = 320 << 10
 			}
 			server := startCandidate(t, opts)
 			padding := strings.Repeat("x", 4096)

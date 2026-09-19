@@ -18,7 +18,7 @@ func TestSynchronousMergesStreamLargeWorkingSets(t *testing.T) {
 			t.Run(store.driver+"/"+scenario, func(t *testing.T) {
 				index := indexFor(t, store, "-1")
 				proxy := proxyBackend(t, store)
-				opts := serverOptions{backend: proxy.backend, readBytes: 1024, batchOps: 8, batchWait: 1000}
+				opts := serverOptions{backend: proxy.backend, snapshotBytes: 1024, outputBytes: 1024, batchOps: 8, batchWait: 1000}
 				server := startCandidate(t, opts)
 				padding := strings.Repeat("x", 700)
 				initialPadding := ""

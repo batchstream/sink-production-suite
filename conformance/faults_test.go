@@ -155,8 +155,8 @@ func assertUnknownWrite(t *testing.T, done <-chan writeOutcome) {
 			}
 		}
 		if len(result.results) != 1 || result.results[0].Status != sink.WriteFailed || result.results[0].Failure == nil ||
-			!result.results[0].Failure.Retryable || len(result.results[0].Revision.Bytes()) != 0 {
-			t.Fatalf("ambiguous commit incorrectly acknowledged or permanently rejected: %+v", result)
+			result.results[0].Failure.Retryable || result.results[0].Failure.Code != sink.FailureUnavailable || len(result.results[0].Revision.Bytes()) != 0 {
+			t.Fatalf("ambiguous Gateway commit was acknowledged or marked safe to retry: %+v", result)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("caller did not resolve after injected failure")

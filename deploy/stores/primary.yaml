@@ -1,0 +1,16 @@
+name: primary
+storage:
+  driver: opensearch
+  search:
+    endpoints:
+    - http://opensearch:9200
+kafka:
+  brokers:
+  - kafka:19092
+  enabled: true
+  topic:
+    name: sink-production-mutations
+    partitions: 8
+    replication_factor: 1
+  dead_letter:
+    topic: sink-production-mutations.dlq

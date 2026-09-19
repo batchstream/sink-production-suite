@@ -1,45 +1,102 @@
-x-mongo: &mongo
+x-mongo:
   image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
-  environment:
+  environment: &id001
     GLIBC_TUNABLES: glibc.pthread.rseq=1
-  command: ["--replSet", "rs0", "--bind_ip_all", "--wiredTigerCacheSizeGB", "0.25"]
+  command: &id002
+  - --replSet
+  - rs0
+  - --bind_ip_all
+  - --wiredTigerCacheSizeGB
+  - '0.25'
   mem_limit: 768m
   cpus: 1
-  healthcheck:
-    test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ping:1}).ok"]
+  healthcheck: &id003
+    test:
+    - CMD
+    - mongosh
+    - --quiet
+    - --eval
+    - db.adminCommand({ping:1}).ok
     interval: 3s
     timeout: 5s
     retries: 40
 services:
   mongo1:
-    <<: *mongo
-    volumes: ["mongo1:/data/db"]
+    image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+    environment: *id001
+    command: *id002
+    mem_limit: 768m
+    cpus: 1
+    healthcheck: *id003
+    volumes:
+    - mongo1:/data/db
   mongo2:
-    <<: *mongo
-    volumes: ["mongo2:/data/db"]
+    image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+    environment: *id001
+    command: *id002
+    mem_limit: 768m
+    cpus: 1
+    healthcheck: *id003
+    volumes:
+    - mongo2:/data/db
   mongo3:
-    <<: *mongo
-    volumes: ["mongo3:/data/db"]
+    image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+    environment: *id001
+    command: *id002
+    mem_limit: 768m
+    cpus: 1
+    healthcheck: *id003
+    volumes:
+    - mongo3:/data/db
   initialize:
-    <<: *mongo
+    image: mongo:8.2@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+    environment: *id001
+    command:
+    - rs.initiate({_id:"rs0",members:[{_id:0,host:"mongo1:27017"},{_id:1,host:"mongo2:27017"},{_id:2,host:"mongo3:27017"}]})
+    mem_limit: 768m
+    cpus: 1
+    healthcheck:
+      disable: true
     depends_on:
-      mongo1: {condition: service_healthy}
-      mongo2: {condition: service_healthy}
-      mongo3: {condition: service_healthy}
-    entrypoint: ["mongosh", "--host", "mongo1:27017", "--quiet", "--eval"]
-    command: ['rs.initiate({_id:"rs0",members:[{_id:0,host:"mongo1:27017"},{_id:1,host:"mongo2:27017"},{_id:2,host:"mongo3:27017"}]})']
-    healthcheck: {disable: true}
+      mongo1:
+        condition: service_healthy
+      mongo2:
+        condition: service_healthy
+      mongo3:
+        condition: service_healthy
+    entrypoint:
+    - mongosh
+    - --host
+    - mongo1:27017
+    - --quiet
+    - --eval
   engine:
     image: ${SINK_QUORUM_IMAGE:?set SINK_QUORUM_IMAGE}
-    command: ["--config", "/etc/sink/config.yaml"]
+    command:
+    - --config
+    - /etc/sink/config.yaml
+    - --store-config
+    - /etc/sink/store.yaml
     mem_limit: 512m
     cpus: 1
-    environment: {GOMEMLIMIT: 384MiB}
-    volumes: ["./engine.yaml:/etc/sink/config.yaml:ro"]
+    environment:
+      GOMEMLIMIT: 384MiB
+    volumes:
+    - ./engine.yaml:/etc/sink/config.yaml:ro
+    - ./store.yaml:/etc/sink/store.yaml:ro
     depends_on:
-      initialize: {condition: service_completed_successfully}
-    ports: ["127.0.0.1::8080", "127.0.0.1::8081"]
+      initialize:
+        condition: service_completed_successfully
+    ports:
+    - 127.0.0.1::8081
+  gateway:
+    image: ${SINK_QUORUM_IMAGE:?set SINK_QUORUM_IMAGE}
+    command: [--config, /etc/sink/gateway.yaml]
+    volumes: [./gateway.yaml:/etc/sink/gateway.yaml:ro]
+    depends_on: [engine]
+    ports: [127.0.0.1::8080]
+
 volumes:
-  mongo1:
-  mongo2:
-  mongo3:
+  mongo1: null
+  mongo2: null
+  mongo3: null

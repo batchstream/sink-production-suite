@@ -1,0 +1,16 @@
+name: elasticsearch-async
+storage:
+  driver: elasticsearch
+  search:
+    endpoints:
+    - http://elasticsearch-async:9200
+kafka:
+  brokers:
+  - kafka:19092
+  enabled: true
+  topic:
+    name: sink-production-elasticsearch-mutations
+    partitions: 8
+    replication_factor: 1
+  dead_letter:
+    topic: sink-production-elasticsearch-mutations.dlq

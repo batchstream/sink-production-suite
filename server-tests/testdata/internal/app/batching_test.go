@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -31,16 +32,14 @@ func TestApplicationAlwaysBatchesGRPCRequests(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer broker.Close()
-				kafkaConfig = fmt.Sprintf(`  kafka:
-    enabled: true
-    brokers: [%q]
-    topic:
-      name: batching-test
-      replication_factor: 1
-      min_insync_replicas: 1
-
-    consumer:
-      group_id: batching-test`, broker.ListenAddrs()[0])
+				kafkaConfig = fmt.Sprintf(`kafka:
+  enabled: true
+  brokers: [%q]
+  topic:
+    name: batching-test
+    replication_factor: 1
+    min_insync_replicas: 1
+`, broker.ListenAddrs()[0])
 			}
 			var calls atomic.Int32
 			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,19 +72,15 @@ func TestApplicationAlwaysBatchesGRPCRequests(t *testing.T) {
 			contents := fmt.Sprintf(`mode: %s
 grpc:
   address: "127.0.0.1:0"
-storage:
-  name: primary
-  driver: opensearch
-  search:
-    endpoints: [%q]
-%s
-service:
-  batching:
-    max_operations: 2
-    max_wait: 1000ms
-`, config.ModeEngine, backend.URL, kafkaConfig)
+health: {address: '127.0.0.1:0'}
+batching:
+  max_operations: 2
+  max_wait: 1000ms
+`, config.ModeEngine)
+			shared := fmt.Sprintf("name: primary\nstorage: {driver: opensearch, search: {endpoints: [%q]}}\n%s", backend.URL, kafkaConfig)
 			path := writeConfig(t, contents)
-			loaded, err := config.Load(path)
+			storePath := writeConfig(t, shared)
+			loaded, err := config.Load(path, storePath)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -102,7 +97,25 @@ service:
 					t.Errorf("serve gRPC: %v", err)
 				}
 			}()
-			connection, err := grpc.NewClient(app.listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+			gatewayConfig := fmt.Sprintf("mode: gateway\ngrpc: {address: '127.0.0.1:0'}\nhealth: {address: '127.0.0.1:0'}\nforwarding: {routes: [{store: primary, target: %q, tls: {insecure: true}}]}", app.listener.Addr().String())
+			gatewayLoaded, err := config.Decode(strings.NewReader(gatewayConfig), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			gatewayOptions := Options{Config: gatewayLoaded, Version: "test"}
+			gateway, err := New(t.Context(), gatewayOptions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			gatewayErrors := make(chan error, 1)
+			go func() { gatewayErrors <- gateway.grpcServer.Serve(gateway.listener) }()
+			defer func() {
+				gateway.Close()
+				if err := <-gatewayErrors; err != nil {
+					t.Error(err)
+				}
+			}()
+			connection, err := grpc.NewClient(gateway.listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
 				t.Fatal(err)
 			}

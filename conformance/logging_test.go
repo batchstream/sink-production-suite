@@ -78,7 +78,7 @@ func TestProcessLoggingSurvivesCollectorOutage(t *testing.T) {
 			index := indexFor(t, store, "100ms")
 			engineOpts := serverOptions{backend: store, logging: logging}
 			engine := startCandidate(t, engineOpts)
-			routes := fmt.Sprintf("  routes:\n    - store: primary\n      target: %s\n      tls: {insecure: true}\n", engine.address)
+			routes := fmt.Sprintf("  routes:\n    - store: primary\n      target: %s\n      tls: {insecure: true}\n", engine.engineAddress)
 			gatewayOpts := serverOptions{role: "gateway", routes: routes, logging: logging}
 			gateway := startCandidate(t, gatewayOpts)
 			select {

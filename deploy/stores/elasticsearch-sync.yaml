@@ -1,0 +1,6 @@
+name: elasticsearch-sync
+storage:
+  driver: elasticsearch
+  search:
+    endpoints:
+    - http://elasticsearch:9200
