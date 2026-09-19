@@ -52,4 +52,4 @@ SINK_MONGODB_TEST_URI="mongodb://127.0.0.1:${published_port}/?directConnection=t
 
 SINK_MONGODB_TEST_URI="mongodb://127.0.0.1:${published_port}/?directConnection=true" \
 	bash "${script_dir}/server-go.sh" test -race -tags=integration ./internal/service \
-	-run '^(TestSynchronousStorageStreamsLargeRecords|TestReadMicrobatchStorageWorkingSet)$/^mongodb$' -count="${test_count}" -timeout=3m -v
+	-run '^(TestSynchronousStorageProcessesCollectedRecords|TestReadMicrobatchStorageWorkingSet)$/^mongodb$' -count="${test_count}" -timeout=3m -v

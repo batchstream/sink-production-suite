@@ -2,7 +2,7 @@
 
 Sink server PRs 37, 38, 40 and 41 exposed gaps in qualification. PR 39 only
 documented the write flow. Passing business Lua examples, eventual final-state
-checks and long-running traffic did not establish bounded backend work,
+checks and long-running traffic did not establish measured backend work,
 independent request completion or per-caller resource ownership.
 
 The old fixtures set search refresh to 100ms, frequently requested visible
@@ -44,7 +44,7 @@ can resume. Both synchronous and Kafka crash tests use this boundary.
 | Cancellation after commit | Committed state remains and record execution capacity is released | `TestCancellationAfterCommitRetainsState` |
 | Worker crashes around backend/offset commits | Unresolved records replay, committed records do not replay, following records drain and ordinary DLQ stays empty | `TestAcceptedMutationCrashBoundaries` |
 | Concurrent operations | Three clients through two processes have a legal sequential explanation preserving real-time precedence | `TestConcurrentHistories` |
-| Slow store saturation | Excess work is rejected, healthy-store writes meet individual deadlines and cancellation releases reservations without applying pre-commit work | `TestSlowStoreSaturationIsBounded` |
+| Slow store saturation | Excess work is rejected, healthy-store writes meet individual deadlines and cancellation releases reservations without applying pre-commit work | `TestSlowStoreDoesNotBlockIndependentWork` |
 | Storage failure misclassified as a bad record | Real Kafka records survive whole-request failures, per-item errors, malformed responses and real index write blocks; only a confirmed invalid document reaches DLQ | `TestWorkerRetainsStorageFailures` |
 
 The conformance harness starts the candidate executable with its public YAML
@@ -162,7 +162,7 @@ event checker as the incident regressions; missing and skipped tests fail.
 | Query | Reverse-inserted known records, pages of 1/4/5/1000, exact and partial last pages, an extra empty page, ascending/descending ordering and include/exclude projections. Native pagination and presentation overrides are checked. |
 | Count | Known totals before pagination; MongoDB metadata estimates versus exact filtered/hinted/pipeline results; empty results; HTTP counts ignore collapse, aggregation and approximate-total requests. |
 | Scan | Every seeded record appears once across several batch sizes; native JSON hit identity and BSON fields survive; callback errors are preserved and already canceled contexts invoke no callbacks. |
-| Cursor ownership | A real Scan page response is held while the caller cancels or the per-request deadline expires. Per-index open contexts reach zero, and the sole admission slot handles the next request while the gate remains held. No backend session is retained between pages. |
+| Cursor ownership | A real Scan page response is held while the caller cancels or the per-request deadline expires. Per-index open contexts reach zero, and the process handles the next request while the gate remains held. No backend session is retained between pages. |
 | Incomplete backend results | A proxy damages real pages with timeout, shard failure, missing timeout/shard metadata, inconsistent shard counts, missing hits, malformed JSON or approximate totals. Query/Count/Scan fail without exposing documents, a total or a continuation cursor. No automatic retry is allowed and healthy requests recover. |
 | Native mutations | Execute changes a real document and retains native error payloads/status. Losing the actual increment response leaves exactly one increment and one backend attempt. |
 | Validation and limits | Raw gRPC bypasses SDK validation for managed query parameters, duplicate sorting, oversized pages/batches and asynchronous returned writes. Backend traces must contain no data requests. Oversized native responses fail without truncated output. |

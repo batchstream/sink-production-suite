@@ -98,8 +98,8 @@ func testGateway(t testing.TB, maximum int, engines ...fixtureEngine) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
-	settings := config.Gateway{Routes: loaded.Gateway.Routes, DNSRefreshInterval: time.Second, IdleTimeout: time.Minute, MaxConnections: 10, MaxRequests: 32, MaxRequestsPerStore: 32, MaxBytes: 256 << 20, MaxFanout: 2}
-	request := config.Request{Timeout: 3 * time.Second, MaxOperations: 1000, MaxReadBytes: maximum}
+	settings := config.Gateway{Routes: loaded.Gateway.Routes, DNSRefreshInterval: time.Second, IdleTimeout: time.Minute, MaxConnections: 10, MaxFanout: 2}
+	request := config.Request{MaxOperations: 1000, MaxReadBytes: maximum}
 	opts := Options{Gateway: settings, Request: request, MaxResponseBytes: maximum, MaxMessageBytes: 64 << 20}
 	server, err := New(opts)
 	if err != nil {
@@ -376,13 +376,7 @@ func TestGatewayAdmissionAndConcurrentBudgets(t *testing.T) {
 		})
 	}
 	work.Wait()
-	gateway.config.MaxBytes = 1
-	request := &sink.ReadRequest{}
-	op := &sink.ReadOperation{Address: address("a", "one")}
-	request.Operations = []*sink.ReadOperation{op}
-	if _, err := gateway.Read(t.Context(), request); status.Code(err) != codes.ResourceExhausted {
-		t.Fatal(err)
-	}
+
 }
 
 func TestGatewayRoutesChangeOnlyAfterRestart(t *testing.T) {
@@ -504,12 +498,11 @@ func TestNativeForwardingPreservesDetailsAndCancellation(t *testing.T) {
 	}
 }
 
-func TestStoreForwardingLimitDoesNotBlockHealthyStore(t *testing.T) {
+func TestSlowForwardingDoesNotBlockHealthyStore(t *testing.T) {
 	held := &controlledEngine{store: "a", entered: make(chan struct{}, 1), release: make(chan struct{})}
 	a := fixtureEngine{store: "a", target: serveEngine(t, held)}
 	b := testEngine(t, "b", 4096)
 	gateway := testGateway(t, 4096, a, b)
-	gateway.config.MaxRequestsPerStore = 1
 	request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "held", false)}}
 	done := make(chan error, 1)
 	go func() { _, err := gateway.Write(t.Context(), request); done <- err }()
@@ -518,15 +511,16 @@ func TestStoreForwardingLimitDoesNotBlockHealthyStore(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("slow Store did not start")
 	}
-	mixed := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "rejected", false), put("b", "healthy", false)}}
-	response, err := gateway.Write(t.Context(), mixed)
+	healthy := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("b", "healthy", false)}}
+	response, err := gateway.Write(t.Context(), healthy)
 	close(held.release)
 	if firstErr := <-done; firstErr != nil {
 		t.Fatal(firstErr)
 	}
-	if err != nil || response.Results[0].GetFailure().GetCode() != sink.FailureCode_FAILURE_CODE_RESOURCE_EXHAUSTED || !response.Results[0].GetFailure().GetRetryable() || response.Results[1].Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
-		t.Fatalf("Store saturation leaked: %v %v", response, err)
+	if err != nil || response.GetResults()[0].GetStatus() != sink.WriteStatus_WRITE_STATUS_APPLIED {
+		t.Fatalf("healthy Store blocked: %v %v", response, err)
 	}
+
 }
 
 func TestFanoutIsBounded(t *testing.T) {
@@ -582,7 +576,7 @@ func TestEngineRejectsStaleProtocolAndMismatchedStoreBeforeWrites(t *testing.T) 
 		t.Run(test.name, func(t *testing.T) {
 			write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put(test.body, test.name, false)}}
 			body := &forward.ForwardRequest_Write{Write: write}
-			grant := &forward.Budget{Snapshots: 4096, Inputs: 4096, Outputs: 4096, Returns: 4096}
+			grant := &forward.Budget{Returns: 4096}
 			request := &forward.ForwardRequest{Version: test.version, Store: test.store, Grant: grant, Request: body}
 			response, err := backend.Forward(t.Context(), request)
 			if err != nil || response.GetCode() != uint32(test.code) || !response.GetNotStarted() {

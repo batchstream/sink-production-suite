@@ -26,7 +26,6 @@ make test-conformance               # public APIs and real process failures
 make test-isolated-quickstart        # matching SDK against three isolated roles
 make benchmark BENCHTIME=1x          # bounded Gateway-to-Engine benchmark smoke
 make benchmark-lua BENCHTIME=1x      # standalone Lua comparisons
-make benchmark-memory               # allocator experiment; no ranking threshold
 make test-perf build-perf            # test/build the public-RPC workload generator
 ```
 

@@ -5,7 +5,7 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
+	"testing/fstest"
 
 	forward "github.com/liran/sink/gen/forward"
 	sink "github.com/liran/sink/gen/sink"
@@ -16,9 +16,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func gatewayMemory(t *testing.T, size int64) *capacity.Pool {
+func gatewayMemory(t *testing.T, size int64) *capacity.Guard {
 	t.Helper()
-	opts := capacity.Options{Bytes: size, BurstPercent: 10, WaitTimeout: time.Second}
+	counter := &fstest.MapFile{Data: []byte("1 0")}
+	files := fstest.MapFS{"proc/self/statm": counter}
+	opts := capacity.Options{Bytes: size, HighPercent: 80, LowPercent: 70, Files: files}
 	p, err := capacity.New(opts)
 	if err != nil {
 		t.Fatal(err)
@@ -26,12 +28,10 @@ func gatewayMemory(t *testing.T, size int64) *capacity.Pool {
 	return p
 }
 
-func TestDemandAdmissionDoesNotChargeMaximumResponses(t *testing.T) {
+func TestMemoryAdmissionDoesNotLimitRequestCount(t *testing.T) {
 	fixture := fixtureEngine{store: "primary", target: "127.0.0.1:1"}
 	server := testGateway(t, 32<<20, fixture)
 	server.memory = gatewayMemory(t, 128<<20)
-	server.config.MaxRequests = 1
-	server.config.MaxRequestsPerStore = 1
 	request := &sink.ReadRequest{}
 	body := &forward.ForwardRequest_Read{Read: request}
 	wrapped := &forward.ForwardRequest{Request: body}
@@ -43,21 +43,15 @@ func TestDemandAdmissionDoesNotChargeMaximumResponses(t *testing.T) {
 		}
 		releases = append(releases, release)
 	}
-	if used := server.memory.Used(); used >= 1<<20 {
-		t.Fatalf("small requests consumed %d", used)
-	}
 	for _, release := range releases {
 		release()
-	}
-	if server.memory.Used() != 0 {
-		t.Fatal("admission leaked")
 	}
 }
 
 func TestStreamedForwardingUsesActualSize(t *testing.T) {
 	backend := testEngine(t, "primary", 32<<20)
 	server := testGateway(t, 32<<20, backend)
-	// Far below a single legacy 64 MiB speculative read reservation.
+	// A healthy process can forward large responses without allocation leases.
 	server.memory = gatewayMemory(t, 8<<20)
 	payload := []byte(`{"value":"` + strings.Repeat("x", 1<<20) + `"}`)
 	op := put("primary", "large", true)
@@ -76,9 +70,6 @@ func TestStreamedForwardingUsesActualSize(t *testing.T) {
 	if err != nil || !bytes.Equal(response.GetResults()[0].GetDocument().GetPayload(), payload) {
 		t.Fatalf("framed read failed: %v", err)
 	}
-	if server.memory.Used() != 0 {
-		t.Fatalf("forwarding leaked %d", server.memory.Used())
-	}
 }
 
 type badFrameEngine struct {
@@ -88,8 +79,29 @@ type badFrameEngine struct {
 
 func (s *badFrameEngine) ForwardStream(_ *forward.ForwardRequest, stream grpc.ServerStreamingServer[forward.ResponseFrame]) error {
 	header := &forward.ResponseFrame{Size: 8}
+	switch s.mode {
+	case "zero-size":
+		header.Size = 0
+	case "excessive-size":
+		header.Size = 1 << 40
+	case "malformed", "trailing":
+		header.Size = 1
+	}
 	if err := stream.Send(header); err != nil {
 		return err
+	}
+	switch s.mode {
+	case "zero-size", "excessive-size", "truncated":
+		return nil
+	case "malformed", "trailing":
+		frame := &forward.ResponseFrame{Data: []byte{0xff}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+		if s.mode == "trailing" {
+			return stream.Send(frame)
+		}
+		return nil
 	}
 	frame := &forward.ResponseFrame{Data: make([]byte, forwarding.FrameBytes+1)}
 	if s.mode == "oversized" {
@@ -99,7 +111,7 @@ func (s *badFrameEngine) ForwardStream(_ *forward.ForwardRequest, stream grpc.Se
 }
 
 func TestInvalidStreamCannotAllocateAnnouncedMaximum(t *testing.T) {
-	for _, mode := range []string{"oversized", "overflow"} {
+	for _, mode := range []string{"oversized", "overflow", "zero-size", "excessive-size", "truncated", "trailing", "malformed"} {
 		t.Run(mode, func(t *testing.T) {
 			backend := &badFrameEngine{mode: mode}
 			target := serveEngine(t, backend)
@@ -117,19 +129,17 @@ func TestInvalidStreamCannotAllocateAnnouncedMaximum(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer server.pool.release(entry)
-			scope := server.memory.NewScope()
-			ctx := capacity.WithScope(context.Background(), scope)
+			ctx := context.Background()
 			request := &forward.ForwardRequest{}
 			_, err = server.forwardStream(ctx, entry, request)
-			scope.Release()
 			if mode == "oversized" && status.Code(err) != codes.ResourceExhausted {
 				t.Fatalf("oversized frame not limited by transport: %v", err)
 			}
-			if mode == "overflow" && status.Code(err) != codes.Internal {
+			if mode != "oversized" && mode != "truncated" && status.Code(err) != codes.Internal {
 				t.Fatalf("invalid frame not rejected: %v", err)
 			}
-			if server.memory.Used() != 0 {
-				t.Fatal("invalid stream leaked capacity")
+			if err == nil {
+				t.Fatal("invalid stream succeeded")
 			}
 		})
 	}

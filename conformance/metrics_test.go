@@ -45,8 +45,8 @@ func TestMetricForStoreRetainsStoreIsolation(t *testing.T) {
 		{"store queue", "sink_batcher_queued_operations{method=\"Write\",store=\"primary\"} 8\nsink_batcher_queued_operations{method=\"Write\",store=\"secondary\"} 4", `sink_batcher_queued_operations{method="Write"}`, 8},
 		{"other store only", `sink_batcher_queued_operations{method="Write",store="secondary"} 4`, `sink_batcher_queued_operations{method="Write"}`, 0},
 		{"other method", `sink_batcher_queued_operations{method="Read",store="primary"} 4`, `sink_batcher_queued_operations{method="Write"}`, 0},
-		{"store publish", `sink_admission_pool_requests{pool="publish",store="primary"} 1`, `sink_admission_pool_requests{pool="publish"}`, 1},
-		{"other pool", `sink_admission_pool_requests{pool="execution",store="primary"} 1`, `sink_admission_pool_requests{pool="publish"}`, 0},
+		{"store high watermark", `sink_memory_watermark_bytes{watermark="high",store="primary"} 1`, `sink_memory_watermark_bytes{watermark="high"}`, 1},
+		{"low watermark", `sink_memory_watermark_bytes{watermark="low",store="primary"} 1`, `sink_memory_watermark_bytes{watermark="high"}`, 0},
 		{"store batch count", `sink_batcher_operations_count{method="Write",store="primary"} 2`, `sink_batcher_operations_count{method="Write"}`, 2},
 		{"store zero takes precedence", "sink_batcher_queued_operations{method=\"Write\",store=\"primary\"} 0\nsink_batcher_queued_operations{method=\"Write\"} 8", `sink_batcher_queued_operations{method="Write"}`, 0},
 	}

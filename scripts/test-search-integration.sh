@@ -69,5 +69,5 @@ SINK_SEARCH_TEST_DRIVER="${backend}" \
 if [[ "${backend}" == "opensearch" ]]; then
 	SINK_SEARCH_TEST_ENDPOINT="${endpoint}" \
 		bash "${script_dir}/server-go.sh" test -race -tags=integration ./internal/service \
-		-run '^(TestSynchronousStorageStreamsLargeRecords|TestReadMicrobatchStorageWorkingSet)$/^opensearch$' -count="${test_count}" -timeout=3m -v
+		-run '^(TestSynchronousStorageProcessesCollectedRecords|TestReadMicrobatchStorageWorkingSet)$/^opensearch$' -count="${test_count}" -timeout=3m -v
 fi

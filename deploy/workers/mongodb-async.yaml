@@ -6,9 +6,6 @@ prometheus:
   address: :9090
 shutdown_timeout: 15s
 execution:
-  mongodb:
-    max_concurrent_groups: 16
-    max_concurrent_writes: 64
   merge:
     lua:
       max_cached_programs: 256

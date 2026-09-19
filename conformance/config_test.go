@@ -6,14 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 )
-
-type admissionQueueOptions struct {
-	requests int
-	bytes    int
-	wait     time.Duration
-}
 
 // Component and Store are independently parsed YAML documents.
 func candidateConfigs(opts serverOptions, addresses []string) (string, string) {
@@ -38,12 +31,6 @@ func candidateConfigs(opts serverOptions, addresses []string) (string, string) {
 		return component.String(), ""
 	}
 	fmt.Fprintf(&component, "execution:\n  merge:\n    max_attempts: 50\n    lua: {max_instructions: %d}\n", defaultInt(opts.luaInstructions, 1000000))
-	if opts.snapshotBytes > 0 {
-		fmt.Fprintf(&component, "  max_snapshot_bytes: %d\n", opts.snapshotBytes)
-	}
-	if opts.outputBytes > 0 {
-		fmt.Fprintf(&component, "  max_output_bytes: %d\n", opts.outputBytes)
-	}
 	if mode == "engine" {
 		fmt.Fprintf(&component, "batching:\n  max_operations: %d\n  max_wait: %dms\n  queue: {max_operations: %d}\n", defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
 	} else {

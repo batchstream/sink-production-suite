@@ -5,9 +5,6 @@ package conformance_test
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -17,31 +14,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-// Negotiate the candidate's configuration capability so released servers still
-// run their count/queue contract and newer servers run real capacity scenarios.
-func usesMemoryAdmission(t *testing.T) bool {
-	t.Helper()
-	binary := os.Getenv("SINK_SERVER_BINARY")
-	if binary == "" {
-		t.Fatal("SINK_SERVER_BINARY is required")
-	}
-	config := "mode: gateway\nmemory: {burst_percent: 10}\nforwarding:\n  routes:\n    - store: primary\n      target: 127.0.0.1:8080\n      tls: {insecure: true}\n"
-	filename := filepath.Join(t.TempDir(), "memory-capability.yaml")
-	if err := os.WriteFile(filename, []byte(config), 0600); err != nil {
-		t.Fatal(err)
-	}
-	command := exec.CommandContext(t.Context(), binary, "config", "check", "--config", filename)
-	output, err := command.CombinedOutput()
-	if err == nil {
-		return true
-	}
-	if strings.Contains(string(output), "field memory not found") {
-		return false
-	}
-	t.Fatalf("cannot determine memory configuration support: %s: %v", output, err)
-	return false
-}
 
 func memoryMetricTotal(metrics map[string]float64, name string) float64 {
 	total := 0.0
@@ -53,15 +25,6 @@ func memoryMetricTotal(metrics map[string]float64, name string) float64 {
 	return total
 }
 
-func memoryOccupancyMetric(name string) bool {
-	for _, prefix := range []string{"sink_memory_used_bytes", "sink_memory_opaque_reserved_bytes", "sink_memory_waiting_bytes", "sink_memory_waiting_requests", "sink_memory_burst_borrowers"} {
-		if strings.HasPrefix(name, prefix+"{") || name == prefix {
-			return true
-		}
-	}
-	return false
-}
-
 func testMemoryDirectBursts(t *testing.T) {
 	for _, store := range searchBackends(t) {
 		t.Run(store.driver, func(t *testing.T) {
@@ -69,7 +32,7 @@ func testMemoryDirectBursts(t *testing.T) {
 			proxy := proxyBackend(t, store)
 			other := independentBackend(t, store)
 			otherIndex := indexFor(t, other, "100ms")
-			opts := serverOptions{backend: proxy.backend, secondary: &other, capacity: 1, memoryBytes: 4 << 20}
+			opts := serverOptions{backend: proxy.backend, secondary: &other}
 			server := startCandidate(t, opts)
 			operation := put(t, addressFor(t, index, "record"), `{"counter":1}`, sink.WriteUpsert)
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, operation), 1)
@@ -92,8 +55,8 @@ func testMemoryDirectBursts(t *testing.T) {
 				counted(t, call)
 			}
 			used := memoryMetricTotal(server.metricSnapshot(t), "sink_memory_used_bytes")
-			if used <= 0 || used >= 1<<20 {
-				t.Fatalf("small Count charged a maximum response instead of owned bytes: %g", used)
+			if used <= 0 {
+				t.Fatalf("process memory was not observed: %g", used)
 			}
 			healthy := sink.CountRequest{Command: nativeSearch(otherIndex)}
 			healthy.Command.URI = strings.Replace(healthy.Command.URI, "sink://primary/", "sink://secondary/", 1)
@@ -110,7 +73,7 @@ func testMemoryAdmissionCancellation(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, capacity: 1, memoryBytes: 320 << 10}
+			opts := serverOptions{backend: proxy.backend}
 			server := startCandidate(t, opts)
 			operation := put(t, addressFor(t, index, "record"), `{"counter":1}`, sink.WriteUpsert)
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, operation), 1)
@@ -123,14 +86,7 @@ func testMemoryAdmissionCancellation(t *testing.T) {
 			busy := countAsync(ctx, server.client, held)
 			gate.wait(t)
 			ordinary := sink.CountRequest{Command: nativeSearch(index)}
-			_, err := server.client.Count(t.Context(), ordinary)
-			if status.Code(err) != codes.ResourceExhausted {
-				t.Fatalf("occupied ordinary capacity accepted excess input: %v", err)
-			}
-			metrics := server.metricSnapshot(t)
-			if memoryMetricTotal(metrics, "sink_memory_rejected_total") == 0 || memoryMetricTotal(metrics, "sink_memory_burst_borrowers") != 0 {
-				t.Fatalf("admission did not reject without borrowing completion reserve: %v", metrics)
-			}
+			counted(t, countAsync(t.Context(), server.client, ordinary))
 			cancel()
 			if result := <-busy; status.Code(result.err) != codes.Canceled {
 				t.Fatalf("cancellation: %+v", result)
@@ -150,7 +106,7 @@ func testMemoryStoreSaturation(t *testing.T, rounds int) {
 			proxy := proxyBackend(t, store)
 			other := independentBackend(t, store)
 			otherIndex := indexFor(t, other, "100ms")
-			opts := serverOptions{backend: proxy.backend, secondary: &other, capacity: 2, memoryBytes: 1 << 20, maxOps: 8, batchOps: 1, queued: 8}
+			opts := serverOptions{backend: proxy.backend, secondary: &other, maxOps: 32, batchOps: 16, queued: 128}
 			server := startCandidate(t, opts)
 			healthy, err := sink.NewRecordAddress(testuri.Resource("secondary", []string{otherIndex}), sink.StringKey("healthy"))
 			if err != nil {
@@ -167,28 +123,16 @@ func testMemoryStoreSaturation(t *testing.T, rounds int) {
 				busy := countAsync(ctx, server.client, held)
 				gate.wait(t)
 				payload := `{"value":"` + strings.Repeat("x", 32<<10) + `"}`
-				var rejected []sink.Address
+				var written []sink.Address
 				var calls []<-chan writeOutcome
-				for i := range 66 {
+				for i := range 16 {
 					address := addressFor(t, index, fmt.Sprintf("excess-%d-%d", round, i))
-					rejected = append(rejected, address)
+					written = append(written, address)
 					operation := put(t, address, payload, sink.WriteUpsert)
 					calls = append(calls, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, operation))
 				}
 				for _, call := range calls {
-					select {
-					case result := <-call:
-						failed := result.err == nil && len(result.results) == 1 && result.results[0].Failure != nil && result.results[0].Failure.Code == sink.FailureResourceExhausted
-						if status.Code(result.err) != codes.ResourceExhausted && !failed {
-							t.Fatalf("excess work escaped capacity admission: %+v", result)
-						}
-					case <-time.After(5 * time.Second):
-						t.Fatal("excess work did not fail promptly")
-					}
-				}
-				metrics := server.metricSnapshot(t)
-				if memoryMetricTotal(metrics, "sink_memory_used_bytes") > 1<<20 || memoryMetricTotal(metrics, "sink_memory_rejected_total") == 0 {
-					t.Fatalf("capacity bound or overload telemetry failed: %v", metrics)
+					applied(t, call, 1)
 				}
 				for sample := range 8 {
 					call, stop := context.WithTimeout(t.Context(), time.Second)
@@ -202,10 +146,13 @@ func testMemoryStoreSaturation(t *testing.T, rounds int) {
 				}
 				server.waitIdle(t)
 				gate.open()
-				for _, address := range rejected {
-					assertAbsent(t, server.client, address)
+				for _, address := range written {
+					results, err := server.client.Read(t.Context(), address)
+					if err != nil || len(results) != 1 || results[0].Status != sink.ReadFound {
+						t.Fatalf("independent write missing: %+v %v", results, err)
+					}
 				}
-				metrics = server.waitIdle(t)
+				metrics := server.waitIdle(t)
 				if metrics["go_goroutines"] > baseline["go_goroutines"]+80 || metrics["go_memstats_heap_alloc_bytes"] > baseline["go_memstats_heap_alloc_bytes"]+64<<20 {
 					t.Fatalf("resource growth after capacity saturation: baseline=%v current=%v", baseline, metrics)
 				}
@@ -220,7 +167,7 @@ func testMemoryPublisherStall(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "-1")
 			topic := fmt.Sprintf("sink-memory-publisher-%d", time.Now().UnixNano())
-			opts := serverOptions{backend: store, broker: broker.address, topic: topic, capacity: 1, batchOps: 1, memoryBytes: 4 << 20}
+			opts := serverOptions{backend: store, broker: broker.address, topic: topic, batchOps: 1}
 			server := startCandidate(t, opts)
 			broker.docker(t, "pause")
 			paused := true
@@ -235,9 +182,9 @@ func testMemoryPublisherStall(t *testing.T) {
 				pending = append(pending, writeAsync(t.Context(), server.client, sink.CompletionReturnAfterAccepted, operation))
 			}
 			deadline := time.Now().Add(5 * time.Second)
-			for memoryMetricTotal(server.metricSnapshot(t), "sink_memory_used_bytes") == 0 {
+			for server.metricSnapshot(t)["sink_in_flight_requests"] < 2 {
 				if time.Now().After(deadline) {
-					t.Fatal("publishers did not retain their input")
+					t.Fatal("publishers did not start")
 				}
 				time.Sleep(10 * time.Millisecond)
 			}

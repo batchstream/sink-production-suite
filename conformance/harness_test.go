@@ -60,21 +60,15 @@ type serverOptions struct {
 	batchOps        int
 	batchWait       int
 	readBytes       int
-	snapshotBytes   int
-	outputBytes     int
 	worker          bool
 	broker          string
 	topic           string
-	capacity        int
 	queued          int
 	maxOps          int
 	secondary       *backend
 	luaInstructions int
 	endpoints       []string
-	executionBytes  int
 	memoryBytes     int
-	admissionQueue  *admissionQueueOptions
-	scanWait        time.Duration
 }
 
 type candidate struct {

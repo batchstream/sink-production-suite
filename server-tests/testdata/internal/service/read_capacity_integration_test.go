@@ -5,10 +5,8 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/liran/sink/internal/capacity"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/liran/sink/internal/protocol"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -21,25 +19,14 @@ func TestReadMicrobatchStorageWorkingSet(t *testing.T) {
 	for _, driver := range []string{"mongodb", "opensearch"} {
 		t.Run(driver, func(t *testing.T) {
 			fixture := newSyncCapacityFixture(t, driver)
-			backend := &readCapacityStorage{Storage: fixture.backend, maximum: 2048}
+			backend := &readCapacityStorage{Storage: fixture.backend}
 			server := completionServer(t, backend)
 			server.server.maxReadBytes = 2048
-			memoryOptions := capacity.Options{Bytes: 128 << 20, BurstPercent: 10, WaitTimeout: time.Second}
-			pool, err := capacity.New(memoryOptions)
-			if err != nil {
-				t.Fatal(err)
-			}
-			server.server.memory = pool
 			seed := storage.WriteRequest{}
 			calls := make([]*batchCall[*sink.ReadRequest, *sink.ReadResponse], 12)
 			for index := range calls {
 				key := fmt.Sprintf("record-%d", index)
-				scope := pool.NewScope()
-				ctx := capacity.WithScope(t.Context(), scope)
-				if err := scope.Admit(ctx, 4096); err != nil {
-					t.Fatal(err)
-				}
-				call := readCapacityCall(ctx, key)
+				call := readCapacityCall(t.Context(), key)
 				address := call.request.Operations[0].Address
 				address.Uri = fixture.recordURI(address)
 				converted, err := protocol.ParseAddress(address)
@@ -84,20 +71,8 @@ func TestReadMicrobatchStorageWorkingSet(t *testing.T) {
 					t.Fatalf("caller %d got value %d: %v", index, value.Value, err)
 				}
 			}
-			if backend.reads.Load() != 6 {
-				t.Fatalf("expected 6 bounded chunks, got %d", backend.reads.Load())
-			}
-			if pool.Used() == 0 {
-				t.Fatal("response bytes released before original callers finished")
-			}
-			for _, call := range calls {
-				capacity.FromContext(call.ctx).Release()
-			}
-			if pool.Used() != 0 {
-				t.Fatalf("managed bytes leaked: %d", pool.Used())
-			}
-			if server.server.inFlightBytes != 0 || server.server.inFlightRequests != 0 {
-				t.Fatal("read admission leaked")
+			if backend.reads.Load() != 1 {
+				t.Fatalf("expected one collected batch, got %d", backend.reads.Load())
 			}
 		})
 	}

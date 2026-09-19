@@ -214,7 +214,7 @@ func TestNativeScanCancellationReleasesCursorAndAdmission(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, capacity: 1}
+			opts := serverOptions{backend: proxy.backend}
 			server := startCandidate(t, opts)
 			for i := range 3 {
 				address := addressFor(t, index, fmt.Sprint(i))
@@ -300,7 +300,7 @@ func TestNativeScanDeadlinesReleaseResources(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, capacity: 1}
+			opts := serverOptions{backend: proxy.backend}
 			server := startCandidate(t, opts)
 			address := addressFor(t, index, "deadline")
 			operation := put(t, address, `{"counter":1}`, sink.WriteCreate)
