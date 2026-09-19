@@ -28,6 +28,7 @@ case "${phase}" in
     required+=',TestDirectAdmissionQueuesBurst,TestDirectAdmissionBoundsQueuedCountAndBytes,TestDirectAdmissionWaitDeadlineAndImpossibleRequests,TestAdmissionHandoffFillsEveryAvailableSlot,TestDirectAdmissionWaitConsumesRequestDeadline,TestReturnedPutsShareKnownDocumentReservation,TestAdmissionPreservesCancellationAfterWakeup,TestScanAdmissionAndExecutionSharePageDeadline,TestScanAdmissionWaitIsBoundedAndCanceled,TestScanWaitQueueBounds,TestOversizedScanDoesNotWaitOrAdvertiseRetry,TestWriteBatchSplitsAtExecutionByteLimit,TestReadBatchSplitsAtExecutionByteLimit,TestStoreForwardingLimitDoesNotBlockHealthyStore,TestCrossStoreReturnBudgetCheckedBeforeCommit,TestMisroutedEngineCannotWrite,TestIsolatedRoles,TestPrometheusRequiresExplicitOptIn,TestHealthEndpointsDoNotRequirePrometheus,TestRejectRemovedStoreSettings,TestRejectRemovedGatewaySettings,TestHealthAddressIsIndependentOfPrometheus,TestRoutesRejectDuplicateStoreNames,TestGatewayRoutesChangeOnlyAfterRestart,TestEngineRejectsStaleProtocolAndMismatchedStoreBeforeWrites,TestScanProjectionSurvivesWireAndRejectsInvalidFields'
     required+=',TestRecordAffinityAcrossGatewaysAndRPCBoundaries,TestAffinityMembershipChangesMoveOnlyAffectedOwners,TestReplicaReturnBudgetRemainsScopedToOriginalRPC,TestDiscoverySnapshotsSurviveRefreshAndErrors,TestRecordAddressContainsOnlyCanonicalURI,TestNativeCommandUsesResourceURI,TestNativeURITargetsResourceAndKeepsOperationSeparate,TestNativeURIQueryUsesResourceWithoutOperationSuffix,TestMongoNativeURISelectsDatabase'
     required+=',TestHTTPReadinessRejectsClosedRoles,TestReadinessProbeCannotRestoreClosedRole,TestShutdownWithdrawsReadinessAndDrainsAcceptedRPC,TestMembershipWithdrawalRetainsInFlightRequestSnapshot,TestAffinityRoutingKeepsPublishedHashMapping'
+    required+=',TestConsoleDefaultsLabelsAndComponentLevel,TestFailureBodyRequiresOptInErrorAndRemainsBounded,TestOTLPWireSurvivesIngestionProjection,TestCollectorOutageDoesNotBlockLoggingAndReportsQueueLoss,TestShutdownDeadlineWhileCollectorIsUnavailable,TestTLSNeverFallsBackToPlaintext,TestOTLPRecoversWithoutRestart,TestRPCDiagnosticsCaptureApplicationFailuresWithoutPayload,TestRPCDiagnosticsCaptureApplicationFailuresWithoutPayload/managed_failure,TestStreamDiagnosticsPreserveOutcomeAndExcludeHealth,TestSuppressedFailureBodiesAreNotEvaluated'
     ;;
   elasticsearch|opensearch)
     : "${SINK_SEARCH_TEST_ENDPOINT:?disposable backend endpoint is required}"
@@ -45,14 +46,20 @@ case "${phase}" in
   *) echo "usage: $0 [unit|elasticsearch|opensearch|mongodb]" >&2; exit 1 ;;
 esac
 
-go -C "${SINK_SERVER_DIR}" test -mod=readonly -race "${flags[@]}" "${packages[@]}" \
+go -C "${SINK_SERVER_DIR}" test -mod=readonly -race -covermode=atomic -coverpkg=./... -coverprofile="${artifacts}/${phase}.out" "${flags[@]}" "${packages[@]}" \
   -count=1 -timeout=10m -json > "${artifacts}/${phase}.jsonl"
 go -C "${suite_dir}" run ./cmd/check-test-events --file "${artifacts}/${phase}.jsonl" --require "${required}"
 
 if [[ "${phase}" == mongodb || "${phase}" == opensearch ]]; then
-  go -C "${SINK_SERVER_DIR}" test -mod=readonly -race -tags=integration ./internal/service \
+  go -C "${SINK_SERVER_DIR}" test -mod=readonly -race -covermode=atomic -coverpkg=./... -coverprofile="${artifacts}/${phase}-service.out" -tags=integration ./internal/service \
     -run "^(TestSynchronousStorageStreamsLargeRecords|TestReadMicrobatchStorageWorkingSet)$/^${phase}$" \
     -count=1 -timeout=5m -json > "${artifacts}/${phase}-service.jsonl"
   go -C "${suite_dir}" run ./cmd/check-test-events --file "${artifacts}/${phase}-service.jsonl" \
     --require "TestSynchronousStorageStreamsLargeRecords/${phase}/snapshots,TestSynchronousStorageStreamsLargeRecords/${phase}/outputs,TestReadMicrobatchStorageWorkingSet/${phase}"
 fi
+
+coverage_flags=(--profile "${artifacts}/${phase}.out" --report "${artifacts}/${phase}-coverage.md")
+if [[ "${phase}" == unit ]]; then
+  coverage_flags+=(--minimums "${suite_dir}/.github/candidate-coverage-minimums.json")
+fi
+python3 "${suite_dir}/scripts/check-coverage.py" "${coverage_flags[@]}"

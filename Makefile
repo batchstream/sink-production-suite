@@ -36,8 +36,18 @@ test-quorum:
 test-reliability: export SINK_CONFORMANCE_TEST_TIMEOUT ?= 30m
 test-reliability: test-candidate test-conformance
 	SINK_RUN_LOAD=1 SINK_RUN_RESILIENCE=1 SINK_RUN_SCALING=1 SINK_SOAK_DURATION=2h SINK_SOAK_CONCURRENCY=16 SINK_SOAK_MIN_CYCLES=1000 SINK_SOAK_TEST_TIMEOUT=150m SINK_FAULT_CYCLES=12 SINK_FAULT_INTERVAL_SECONDS=300 bash scripts/test-integration.sh
+	bash scripts/test-mongodb-quorum.sh
 
 lint:
 	@test -z "$$(gofmt -l .)"
 	go vet -tags=integration ./...
 	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) -tags=integration -checks=all ./...
+
+# Core-package floors are kept separately from generated code and examples.
+.PHONY: test-coverage
+COVERAGE_DIR ?= .reports/coverage
+test-coverage:
+	@mkdir -p $(COVERAGE_DIR)
+	go test -mod=readonly -race -covermode=atomic -coverpkg=./... -coverprofile=$(COVERAGE_DIR)/unit.out -count=1 -timeout=10m -json ./... > $(COVERAGE_DIR)/unit.jsonl
+	python3 -m unittest discover -s scripts -p 'test_coverage.py'
+	python3 scripts/check-coverage.py --profile $(COVERAGE_DIR)/unit.out --minimums .github/coverage-minimums.json --report $(COVERAGE_DIR)/summary.md

@@ -203,15 +203,14 @@ minutes per fuzzer; an unusually large corpus requires increasing `FUZZ_TIME`.
 
 ```sh
 SINK_SERVER_DIR=/path/to/sink make test-conformance
-SINK_SERVER_DIR=/path/to/sink make test-regression-sensitivity
 SINK_SERVER_DIR=/path/to/sink make test-production
 ```
 
-The sensitivity gate first requires the current candidate to pass. It then
-builds seven immutable pre-fix commits in separate temporary directories and
-requires the corresponding incident assertion to fail on Elasticsearch. A
-compilation error, missing dependency, skip or arbitrary nonzero exit is rejected
-as proof. This checks the tests themselves and runs on every suite PR.
+Historical sensitivity experiments proved selected incident assertions against
+pre-fix commits, but that runner was removed with the legacy protocol fixtures.
+There is no current `test-regression-sensitivity` target or historical-binary
+CI job. Current gates exercise the candidate with controlled faults and explicit
+oracles; the historical proof is not evidence of a newly changed test's sensitivity.
 
 The conformance runner builds both server and tests with the race detector,
 uses dynamically allocated loopback backend ports and its own Compose project,

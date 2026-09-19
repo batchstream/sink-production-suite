@@ -10,14 +10,15 @@ credentials, or connect to an external Kubernetes cluster.
 
 Production incidents from Sink PRs 37 through 41 are now executable public-API
 contracts. The [incident matrix and reliability contract](docs/reliability-contract.md)
-explain each missed invariant, its deterministic oracle, historical pre-fix
-failure proof, configuration/model matrix and remaining qualification gaps.
-Integration, release and sustained runs start with `make test-conformance`;
-suite PRs also prove that the tests reject historical broken candidates.
+explain each missed invariant, its deterministic oracle, configuration/model
+matrix and remaining qualification gaps. Integration, release and sustained runs
+start with `make test-conformance`. Historical pre-fix evidence is documentation;
+current CI does not run historical binaries or a regression-sensitivity target.
 
 The [September 16 release coverage review](docs/current-release-review-2026-09-16.md)
 maps the latest Scan, admission, Lua and configuration changes to required tests,
-including the matching Go SDK and historical performance-regression proofs.
+including the matching Go SDK. Historical performance-regression proofs are
+retained as review context, not current CI jobs.
 
 Admission scenarios negotiate the candidate's `memory` configuration support.
 Released servers retain the count/queue assertions. Candidates with demand-based
@@ -99,7 +100,7 @@ The suite verifies:
     scale-in and temporary DNS failure. Required test events prevent an older
     SDK with no matching tests from passing the gate.
 
-Release qualification uses a bounded three-minute active-fault workload with a
+Release qualification uses a bounded six-minute active-fault workload with a
 three-minute deadline for each business cycle to reconcile. The fixture removes
 its former `max_retry_attempts: 30` override and exercises Sink's default retry
 rounds. Every normal-workload DLQ must remain empty before the deliberate
@@ -122,8 +123,8 @@ race suite, real MongoDB/Elasticsearch/OpenSearch storage suites and bounded
 service integration in addition to the public API suite. Named test events reject
 missing or skipped regressions. New public scenarios verify Lua budget isolation,
 managed query safety/failover, lookahead byte budgets and BSON fidelity through
-returned writes, Kafka and a second server. Historical broken candidates must
-fail at the corresponding assertions.
+returned writes, Kafka and a second server. Historical broken-candidate evidence is retained in the review documents; it is
+not an active compatibility gate for the current protocol.
 
 `SINK_SERVER_DIR=/path/to/sink make test-candidate` runs the candidate race gate
 without Docker. Ordinary `go test ./...` remains independent of infrastructure.
@@ -323,7 +324,7 @@ and a bounded Engine. It elects a different primary during continuous writes,
 pauses both secondaries to remove the majority, requires no successful write
 acknowledgements during a settled outage window, restores quorum and reconciles
 all acknowledged state. The workload uses application sequence IDs to tolerate
-unknown mutation outcomes. Production qualification includes this check after
+unknown mutation outcomes. Production and nightly reliability qualification include this check after
 the seven-store workload. It does not certify multi-region failures, disk loss
 or backup restoration.
 
@@ -340,3 +341,46 @@ merges, reads, deletes and independent Kafka acceptance through both Gateways fo
 `secondary` and `mongodb-sync`. These must finish before the failed dependencies
 are restored; readiness alone does not establish Store isolation. Every third
 fault cycle keeps the primary Kafka broker paused during these checks as well.
+
+## Coverage and logging qualification
+
+`make test-coverage` runs the ordinary race suite, records JSON test events and
+statement coverage, and enforces the core-package floors in
+`.github/coverage-minimums.json`. Evidence is retained in `.reports/coverage/`
+and uploaded by CI. Generated protobuf is excluded; floors are package-specific
+so well-covered helpers cannot hide a regression in a critical package. Floors
+allow small execution/platform variation and should increase with new tests,
+not be lowered to make an unrelated change pass.
+
+Candidate qualification also retains `unit.out`, `mongodb.out`,
+`elasticsearch.out`, `opensearch.out` and bounded service-integration profiles in
+its evidence directories. The candidate ordinary suite is checked against
+`.github/candidate-coverage-minimums.json`, including logging. This gate runs
+`Test`/`Example` only, so its queue baseline excludes decoder fuzz seeds that
+intentionally skip invalid inputs. To inspect the
+union, repeat `--profile` with files from the **same candidate revision**:
+
+```sh
+python3 scripts/check-coverage.py --profile /path/unit.out --profile /path/mongodb.out --report /path/combined.md
+```
+
+These profiles instrument Go test processes, not the separately launched
+conformance server. The suite's own percentage measures its test helpers and
+reference models, not the percentage of Sink's public behavior tested.
+
+`TestProcessLoggingSurvivesCollectorOutage` launches real Engine and Gateway
+processes with an unavailable OTLP HTTP receiver. Successful writes and exact
+readback must continue. After receiver recovery, application-level failures and
+forwarded stream diagnostics must arrive without process restart, document
+contents must remain absent, and both processes must flush their final lifecycle
+events on graceful exit. Exporter failures remain visible on stderr even when
+ordinary console logging is disabled. Candidate unit gates additionally require
+both OTLP transports, TLS refusal to downgrade, bounded queue loss and shutdown.
+
+The process test detected an actual diagnostic gap: memory-managed Gateway
+responses reached the outer logging interceptor inside `protocol.ManagedMessage`.
+Without unwrapping for observation, a failed Create was reported at debug level
+with zero operations/failures. The server regression requires the original
+managed response to be returned unchanged while recording its underlying failure.
+The standalone process assertion failed on Sink `49d87e2` and passed after the
+matching fix; unlike old historical-binary gates, this is a current test oracle.
