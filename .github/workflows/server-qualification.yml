@@ -1,0 +1,378 @@
+name: Server qualification
+
+on:
+  workflow_call:
+    inputs:
+      suite_ref:
+        description: Immutable suite revision owning the tests
+        required: true
+        type: string
+      sink_ref:
+        description: Immutable Sink candidate revision
+        required: true
+        type: string
+      sdk_ref:
+        description: Optional matching SDK branch or revision
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  components:
+    name: Server component and transport regressions
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    env:
+      SINK_SERVER_DIR: ${{ github.workspace }}/sink-server
+    steps:
+      - name: Use runner evidence directory
+        run: echo "TMPDIR=${RUNNER_TEMP}" >> "${GITHUB_ENV}"
+      - name: Check out immutable suite
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink-production-suite
+          path: suite
+          ref: ${{ inputs.suite_ref }}
+      - name: Check out Sink candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink
+          path: sink-server
+          ref: ${{ inputs.sink_ref }}
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: suite/go.mod
+          cache-dependency-path: |
+            suite/go.sum
+            suite/tools/sink-perf/go.sum
+            sink-server/go.sum
+      - name: Require migrated and ordinary candidate regressions
+        run: make -C suite test-candidate lint-server test-perf
+      - name: Preserve server qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: server-components
+          path: |
+            ${{ runner.temp }}/sink-candidate.*
+            ${{ runner.temp }}/sink-conformance.*
+            ${{ runner.temp }}/sink-isolated-smoke.*
+            suite/.reports/
+          include-hidden-files: true
+          retention-days: 14
+  public-conformance:
+    name: Public API conformance (OpenSearch ${{ matrix.version }})
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: '3.8'
+            image: opensearchproject/opensearch:3.8.0@sha256:bcc1797519726ceb6d651d4a3e60b7c30da91793914a8dfe75fd441d4f641509
+          - version: '2.17'
+            image: opensearchproject/opensearch:2.17.0@sha256:7b9517dff561f54456fad947f11820fa595a340fd1034fc63d57b77f724b3f8f
+    runs-on: ubuntu-latest
+    env:
+      SINK_SERVER_DIR: ${{ github.workspace }}/sink-server
+    steps:
+      - name: Use runner evidence directory
+        run: echo "TMPDIR=${RUNNER_TEMP}" >> "${GITHUB_ENV}"
+      - name: Check out immutable suite
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink-production-suite
+          path: suite
+          ref: ${{ inputs.suite_ref }}
+      - name: Check out Sink candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink
+          path: sink-server
+          ref: ${{ inputs.sink_ref }}
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: suite/go.mod
+          cache-dependency-path: |
+            suite/go.sum
+            suite/tools/sink-perf/go.sum
+            sink-server/go.sum
+      - name: Qualify public behavior and backend contracts
+        env:
+          SINK_CONFORMANCE_OPENSEARCH_IMAGE: ${{ matrix.image }}
+        run: make -C suite test-conformance
+      - name: Preserve server qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: server-public-conformance-${{ matrix.version }}
+          path: |
+            ${{ runner.temp }}/sink-candidate.*
+            ${{ runner.temp }}/sink-conformance.*
+            ${{ runner.temp }}/sink-isolated-smoke.*
+            suite/.reports/
+          include-hidden-files: true
+          retention-days: 14
+  mongodb:
+    name: MongoDB ReplicaSet integration
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    env:
+      SINK_SERVER_DIR: ${{ github.workspace }}/sink-server
+    steps:
+      - name: Use runner evidence directory
+        run: echo "TMPDIR=${RUNNER_TEMP}" >> "${GITHUB_ENV}"
+      - name: Check out immutable suite
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink-production-suite
+          path: suite
+          ref: ${{ inputs.suite_ref }}
+      - name: Check out Sink candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink
+          path: sink-server
+          ref: ${{ inputs.sink_ref }}
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: suite/go.mod
+          cache-dependency-path: |
+            suite/go.sum
+            suite/tools/sink-perf/go.sum
+            sink-server/go.sum
+      - name: Run storage and bounded working-set regressions
+        run: bash suite/scripts/test-mongodb-integration.sh
+      - name: Preserve server qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: server-mongodb
+          path: |
+            ${{ runner.temp }}/sink-candidate.*
+            ${{ runner.temp }}/sink-conformance.*
+            ${{ runner.temp }}/sink-isolated-smoke.*
+            suite/.reports/
+          include-hidden-files: true
+          retention-days: 14
+  search:
+    name: ${{ matrix.backend }} integration
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [elasticsearch, opensearch]
+    runs-on: ubuntu-latest
+    env:
+      SINK_SERVER_DIR: ${{ github.workspace }}/sink-server
+    steps:
+      - name: Use runner evidence directory
+        run: echo "TMPDIR=${RUNNER_TEMP}" >> "${GITHUB_ENV}"
+      - name: Check out immutable suite
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink-production-suite
+          path: suite
+          ref: ${{ inputs.suite_ref }}
+      - name: Check out Sink candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink
+          path: sink-server
+          ref: ${{ inputs.sink_ref }}
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: suite/go.mod
+          cache-dependency-path: |
+            suite/go.sum
+            suite/tools/sink-perf/go.sum
+            sink-server/go.sum
+      - name: Run storage and bounded working-set regressions
+        run: bash suite/scripts/test-search-integration.sh "${{ matrix.backend }}"
+      - name: Preserve server qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: server-search-${{ matrix.backend }}
+          path: |
+            ${{ runner.temp }}/sink-candidate.*
+            ${{ runner.temp }}/sink-conformance.*
+            ${{ runner.temp }}/sink-isolated-smoke.*
+            suite/.reports/
+          include-hidden-files: true
+          retention-days: 14
+  fuzz-benchmarks:
+    name: Server fuzzing and benchmark smoke
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    env:
+      SINK_SERVER_DIR: ${{ github.workspace }}/sink-server
+    steps:
+      - name: Use runner evidence directory
+        run: echo "TMPDIR=${RUNNER_TEMP}" >> "${GITHUB_ENV}"
+      - name: Check out immutable suite
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink-production-suite
+          path: suite
+          ref: ${{ inputs.suite_ref }}
+      - name: Check out Sink candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink
+          path: sink-server
+          ref: ${{ inputs.sink_ref }}
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: suite/go.mod
+          cache-dependency-path: |
+            suite/go.sum
+            suite/tools/sink-perf/go.sum
+            sink-server/go.sum
+      - name: Fuzz malformed server inputs
+        run: make -C suite fuzz-server
+      - name: Exercise every in-process benchmark
+        run: make -C suite benchmark BENCHTIME=1x
+      - name: Exercise standalone Lua benchmarks
+        run: |
+          go -C suite/benchmarks/lua test -race ./... -count=1
+          make -C suite benchmark-lua BENCHTIME=1x
+      - name: Exercise allocator experiment
+        run: make -C suite benchmark-memory
+      - name: Build performance workload tool
+        run: make -C suite build-perf
+      - name: Preserve server qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: server-fuzz-benchmarks
+          path: |
+            ${{ runner.temp }}/sink-candidate.*
+            ${{ runner.temp }}/sink-conformance.*
+            ${{ runner.temp }}/sink-isolated-smoke.*
+            suite/.reports/
+          include-hidden-files: true
+          retention-days: 14
+  compatibility:
+    name: SDK protocol and isolated roles
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    env:
+      SINK_SERVER_DIR: ${{ github.workspace }}/sink-server
+    steps:
+      - name: Use runner evidence directory
+        run: echo "TMPDIR=${RUNNER_TEMP}" >> "${GITHUB_ENV}"
+      - name: Check out immutable suite
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink-production-suite
+          path: suite
+          ref: ${{ inputs.suite_ref }}
+      - name: Check out Sink candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink
+          path: sink-server
+          ref: ${{ inputs.sink_ref }}
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: suite/go.mod
+          cache-dependency-path: |
+            suite/go.sum
+            suite/tools/sink-perf/go.sum
+            sink-server/go.sum
+      - name: Resolve matching SDK branch
+        id: sdk
+        env:
+          CANDIDATE_REF: ${{ inputs.sdk_ref }}
+        run: |
+          ref=main
+          if [[ -n "${CANDIDATE_REF}" ]] && git ls-remote --exit-code --heads https://github.com/batchstream/sink-go.git "refs/heads/${CANDIDATE_REF}" >/dev/null 2>&1; then
+            ref="${CANDIDATE_REF}"
+          fi
+          echo "ref=${ref}" >> "${GITHUB_OUTPUT}"
+      - name: Check out matching SDK
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink-go
+          path: sink-go
+          ref: ${{ steps.sdk.outputs.ref }}
+      - name: Verify protobuf compatibility
+        run: |
+          sed 's#github.com/liran/sink/gen/sink;sink#github.com/liran/sink-go/api/sink/v1;sinkv1#' \
+            sink-server/proto/sink/sink.proto | diff -u - sink-go/proto/sink/sink.proto
+      - name: Verify SDK against isolated Gateway, Engine and Worker
+        env:
+          SINK_GO_DIR: ${{ github.workspace }}/sink-go
+        run: make -C suite test-isolated-quickstart
+      - name: Preserve server qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: server-compatibility
+          path: |
+            ${{ runner.temp }}/sink-candidate.*
+            ${{ runner.temp }}/sink-conformance.*
+            ${{ runner.temp }}/sink-isolated-smoke.*
+            suite/.reports/
+          include-hidden-files: true
+          retention-days: 14
+  examples:
+    name: Quickstart and release artifact smoke
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    env:
+      SINK_SERVER_DIR: ${{ github.workspace }}/sink-server
+    steps:
+      - name: Use runner evidence directory
+        run: echo "TMPDIR=${RUNNER_TEMP}" >> "${GITHUB_ENV}"
+      - name: Check out immutable suite
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink-production-suite
+          path: suite
+          ref: ${{ inputs.suite_ref }}
+      - name: Check out Sink candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: batchstream/sink
+          path: sink-server
+          ref: ${{ inputs.sink_ref }}
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: suite/go.mod
+          cache-dependency-path: |
+            suite/go.sum
+            suite/tools/sink-perf/go.sum
+            sink-server/go.sum
+      - name: Run documented Lua test example
+        working-directory: sink-server
+        run: go run ./cmd/sink lua test --script examples/lua-test/product.lua --cases examples/lua-test/cases
+      - name: Build and verify release archives
+        working-directory: sink-server
+        run: |
+          scripts/build-release-binaries.sh ci dist
+          test "$(find dist -maxdepth 1 -type f -name 'sink_ci_*' | wc -l)" -eq 4
+          test "$(wc -l < dist/checksums.txt)" -eq 4
+          cd dist
+          sha256sum --check checksums.txt
+      - name: Run end-to-end example
+        working-directory: sink-server
+        run: bash examples/quickstart/run.sh
+      - name: Print example logs after failure
+        if: failure()
+        working-directory: sink-server
+        run: docker compose --env-file /dev/null --file examples/quickstart/compose.yaml logs --no-color || true
+      - name: Stop example services
+        if: always()
+        working-directory: sink-server
+        run: docker compose --env-file /dev/null --file examples/quickstart/compose.yaml down --volumes --remove-orphans

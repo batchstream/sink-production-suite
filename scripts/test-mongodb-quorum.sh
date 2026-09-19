@@ -34,7 +34,8 @@ git -C "${suite_dir}" rev-parse HEAD > "${artifacts}/suite-revision.txt"
 if [[ "${SINK_QUORUM_BUILD:-1}" == 1 ]]; then
   docker build --tag "${SINK_QUORUM_IMAGE}" "${server_dir}" > "${artifacts}/build.log" 2>&1
 fi
-go -C "${server_dir}" build -o "${artifacts}/sink-perf" ./cmd/sink-perf
+SINK_SERVER_DIR="${server_dir}" SINK_CANDIDATE_ARTIFACTS="${artifacts}" \
+  bash "${script_dir}/perf-go.sh" build -o "${artifacts}/sink-perf" .
 "${compose[@]}" up --detach --wait --wait-timeout 180
 health="$("${compose[@]}" port engine 8081)"
 ready=0
