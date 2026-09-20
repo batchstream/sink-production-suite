@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink-go/uri"
 	forward "github.com/batchstream/sink/gen/forward"
 	sink "github.com/batchstream/sink/gen/sink"
 	"github.com/batchstream/sink/internal/config"
@@ -19,6 +18,7 @@ import (
 	"github.com/batchstream/sink/internal/storage"
 	"github.com/batchstream/sink/internal/storage/memory"
 	"github.com/batchstream/sink/internal/testuri"
+	"github.com/liran/sink-go/uri"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

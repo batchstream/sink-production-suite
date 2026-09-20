@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink-go/uri"
 	"github.com/batchstream/sink/internal/testuri"
+	"github.com/liran/sink-go/uri"
 
 	forward "github.com/batchstream/sink/gen/forward"
 	sink "github.com/batchstream/sink/gen/sink"
