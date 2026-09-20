@@ -54,14 +54,16 @@ The suite verifies:
    exhausted merge-conflict retries.
 10. Every consumer group drains to zero lag and dead-letter topics remain empty
     for ordinary traffic and temporary outages.
-11. The public API rejects oversized asynchronous mutations permanently, counts
-    repeated read keys across stores against one output budget, and rejects
-    expanded Lua aliases before changing stored data.
+11. The public API rejects oversized asynchronous mutations permanently, returns
+    every repeated read key across stores in separate bounded frames, and rejects
+    expanded Lua aliases before changing stored data. Both collected results and
+    callback delivery complete without retries when total output exceeds the
+    message limit; callback delivery returns a nil result slice.
 12. An intentional permanent CREATE conflict does not suppress the next valid
     update to the same key. The final recovery scenario inspects exactly one DLQ
     record, repairs the conflict, replays it with the Sink CLI, reconciles the
     stored business result, and verifies the original DLQ position is preserved.
-13. Applied/visible completion, independent datasets, per-RPC budgets, real
+13. Applied/visible completion, independent datasets, per-result limits, real
     revision conflicts, queued cancellation, formatted JSON and bounded hot-key
     backend work satisfy the incident regressions with race detection.
 14. An independent Go operation model checks mixed Create/Upsert/Replace/Merge,
@@ -85,7 +87,8 @@ The suite verifies:
     Alternating server replicas, changing page sizes, retrying a saved checkpoint,
     cancellation and cursor corruption preserve the expected remaining records.
 20. Missing timeout/shard completion evidence and inconsistent shard counts fail
-    Query, Count and Scan without exposing partial output. MongoDB Query rejects
+    Query, Count and Scan. Streamed documents may precede the terminal error,
+    but failed pages never advertise continuation. MongoDB Query rejects
     partial shard results; unordered native writes preserve successful siblings
     while returning the original native error for a failed member.
 21. A held synchronous storage request cannot block Kafka Write/Delete
@@ -94,7 +97,7 @@ The suite verifies:
     fail before enqueue, and accepted records drain in order after recovery.
 22. Eight independent returned merges coalesce into one execution and stream
     large snapshots or outputs through bounded backend requests, preserving
-    each caller's committed document and response budget.
+    each caller's committed document and the per-result size limit.
 23. The pinned Go SDK exercises round-robin balancing and real loopback DNS
     changes with healthy connections, default and custom refresh intervals,
     scale-in and temporary DNS failure. Required test events prevent an older
