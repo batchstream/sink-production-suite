@@ -25,27 +25,20 @@ type rejectionEngine struct {
 	calls atomic.Int32
 }
 
-func (s *rejectionEngine) ForwardStream(req *forward.ForwardRequest, stream grpc.ServerStreamingServer[forward.ResponseFrame]) error {
+func (s *rejectionEngine) Forward(req *forward.ForwardRequest, stream grpc.ServerStreamingServer[forward.ForwardResponse]) error {
 	s.calls.Add(1)
-	results := make([]*sink.WriteResult, len(req.GetWrite().GetOperations()))
-	for i := range results {
+	for i := range req.GetWrite().GetOperations() {
 		result := &sink.WriteResult{OperationIndex: uint32(i), Status: sink.WriteStatus_WRITE_STATUS_APPLIED}
-		results[i] = result
+		written := &sink.WriteResponse{Results: []*sink.WriteResult{result}}
+		body := &forward.ForwardResponse_Write{Write: written}
+		frame := &forward.ForwardResponse{Version: forwarding.Version, Store: req.GetStore(), Response: body}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
 	}
-	written := &sink.WriteResponse{Results: results}
-	body := &forward.ForwardResponse_Write{Write: written}
 	used := &forward.Budget{}
-	response := &forward.ForwardResponse{Version: forwarding.Version, Store: req.GetStore(), Used: used, Response: body}
-	data, err := response.MarshalVT()
-	if err != nil {
-		return err
-	}
-	header := &forward.ResponseFrame{Size: uint64(len(data))}
-	if err := stream.Send(header); err != nil {
-		return err
-	}
-	frame := &forward.ResponseFrame{Data: data}
-	return stream.Send(frame)
+	final := &forward.ForwardResponse{Version: forwarding.Version, Store: req.GetStore(), Used: used, Complete: true}
+	return stream.Send(final)
 }
 
 func TestMemoryPressureRejectsBeforeForwarding(t *testing.T) {
@@ -62,12 +55,12 @@ func TestMemoryPressureRejectsBeforeForwarding(t *testing.T) {
 	server.memory = guard
 	op := put("primary", "retry-local", false)
 	request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{op}}
-	_, err = server.Write(t.Context(), request)
+	_, err = collectWrite(t.Context(), server, request)
 	if status.Code(err) != codes.ResourceExhausted || backend.calls.Load() != 0 {
 		t.Fatalf("pressure rejection reached Engine: calls=%d err=%v", backend.calls.Load(), err)
 	}
 	server.memory = gatewayMemory(t, 1<<20)
-	control, err := server.Write(t.Context(), request)
+	control, err := collectWrite(t.Context(), server, request)
 	if err != nil || control.GetResults()[0].GetStatus() != sink.WriteStatus_WRITE_STATUS_APPLIED || backend.calls.Load() != 1 {
 		t.Fatalf("healthy control failed: %v %v calls=%d", control, err, backend.calls.Load())
 	}
@@ -93,9 +86,9 @@ func TestNativeMemoryPressurePreservesScanRetryAndCancellation(t *testing.T) {
 	scan := &sink.ScanRequest{Command: command}
 	calls := []func(context.Context) error{
 		func(ctx context.Context) error { _, err := server.Execute(ctx, execute); return err },
-		func(ctx context.Context) error { _, err := server.Query(ctx, query); return err },
+		func(ctx context.Context) error { _, err := collectQuery(ctx, server, query); return err },
 		func(ctx context.Context) error { _, err := server.Count(ctx, count); return err },
-		func(ctx context.Context) error { _, err := server.Scan(ctx, scan); return err },
+		func(ctx context.Context) error { _, err := collectScan(ctx, server, scan); return err },
 	}
 	for i, call := range calls {
 		err := call(t.Context())

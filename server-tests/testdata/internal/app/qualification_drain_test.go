@@ -19,14 +19,15 @@ type drainingRPC struct {
 	release chan struct{}
 }
 
-func (s *drainingRPC) Read(ctx context.Context, _ *sink.ReadRequest) (*sink.ReadResponse, error) {
+func (s *drainingRPC) Read(_ *sink.ReadRequest, stream grpc.ServerStreamingServer[sink.ReadResponse]) error {
+	ctx := stream.Context()
 	close(s.entered)
 	select {
 	case <-s.release:
 		response := &sink.ReadResponse{}
-		return response, nil
+		return stream.Send(response)
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return ctx.Err()
 	}
 }
 
@@ -75,7 +76,7 @@ shutdown_timeout: 300ms
 			result := make(chan error, 1)
 			go func() {
 				request := &sink.ReadRequest{}
-				_, err := client.Read(call, request)
+				_, err := collectRead(call, client, request)
 				result <- err
 			}()
 			select {

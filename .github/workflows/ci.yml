@@ -151,3 +151,4 @@ jobs:
     with:
       suite_ref: ${{ github.sha }}
       sink_ref: ${{ needs.resolve-server.outputs.revision }}
+      sdk_ref: ${{ github.head_ref || 'main' }}

@@ -31,13 +31,13 @@ func BenchmarkGatewaySmallPut(b *testing.B) {
 			defer conn.Close()
 			client := sink.NewSinkClient(conn)
 			request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", false)}}
-			if _, err := client.Write(b.Context(), request); err != nil {
+			if _, err := collectWrite(b.Context(), client, request); err != nil {
 				b.Fatal(err)
 			}
 			b.ReportAllocs()
 			b.ResetTimer()
 			for b.Loop() {
-				response, err := client.Write(b.Context(), request)
+				response, err := collectWrite(b.Context(), client, request)
 				if err != nil || response.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
 					b.Fatalf("write: %v %v", response, err)
 				}

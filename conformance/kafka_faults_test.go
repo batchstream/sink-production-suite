@@ -200,7 +200,7 @@ func accepted(t *testing.T, client *sink.Client, operation sink.WriteOperation) 
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	results, err := client.Write(ctx, sink.CompletionReturnAfterAccepted, operation)
+	results, err := client.Write(ctx, sink.CompletionReturnAfterAccepted, []sink.WriteOperation{operation})
 	if err != nil || len(results) != 1 || results[0].Status != sink.WriteAccepted || results[0].Failure != nil {
 		t.Fatalf("accept mutation: %+v, %v", results, err)
 	}

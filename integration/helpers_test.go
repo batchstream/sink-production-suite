@@ -166,7 +166,7 @@ func writePut(t *testing.T, ctx context.Context, client *sink.Client, address si
 	if err != nil {
 		t.Fatalf("sink.NewPut() error = %v", err)
 	}
-	results, err := client.Write(ctx, sink.CompletionWaitUntilVisible, operation)
+	results, err := client.Write(ctx, sink.CompletionWaitUntilVisible, []sink.WriteOperation{operation})
 	if err != nil {
 		t.Fatalf("Write(put) error = %v", err)
 	}
@@ -221,7 +221,7 @@ func assertWriteResults(t *testing.T, results []sink.WriteResult, status sink.Wr
 
 func readProduct(t *testing.T, ctx context.Context, client *sink.Client, address sink.Address) *reference.Product {
 	t.Helper()
-	results, err := client.Read(ctx, address)
+	results, err := client.Read(ctx, []sink.Address{address})
 	if err != nil {
 		t.Fatalf("Read(product) error = %v", err)
 	}
@@ -237,7 +237,7 @@ func readProduct(t *testing.T, ctx context.Context, client *sink.Client, address
 
 func readOffer(t *testing.T, ctx context.Context, client *sink.Client, address sink.Address) *reference.Offer {
 	t.Helper()
-	results, err := client.Read(ctx, address)
+	results, err := client.Read(ctx, []sink.Address{address})
 	if err != nil {
 		t.Fatalf("Read(offer) error = %v", err)
 	}

@@ -32,7 +32,7 @@ func TestPublishingSurvivesSynchronousSaturation(t *testing.T) {
 				for _, address := range []sink.Address{kept, removed} {
 					ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 					operation := put(t, address, `{"counter":7}`, sink.WriteUpsert)
-					results, err := server.client.Write(ctx, sink.CompletionReturnAfterAccepted, operation)
+					results, err := server.client.Write(ctx, sink.CompletionReturnAfterAccepted, []sink.WriteOperation{operation})
 					cancel()
 					if err != nil || len(results) != 1 || results[0].Status != sink.WriteAccepted || results[0].Failure != nil {
 						t.Fatalf("synchronous saturation blocked Kafka publishing: %+v, %v", results, err)

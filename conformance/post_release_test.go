@@ -47,7 +47,7 @@ func TestLuaBudgetFailuresPreserveStateAndSiblings(t *testing.T) {
 					raw := `{"counter":0,"values":[` + strings.Repeat(`"",`, 399) + `""],"short":[` + strings.Repeat(`"",`, 39) + `""],"text":"` + strings.Repeat("a", 32768) + `"}`
 					seed := put(t, address, raw, sink.WriteCreate)
 					applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, seed), 1)
-					before, err := server.client.Read(t.Context(), address)
+					before, err := server.client.Read(t.Context(), []sink.Address{address})
 					if err != nil || len(before) != 1 || before[0].Status != sink.ReadFound {
 						t.Fatalf("seed read: %+v, %v", before, err)
 					}
@@ -57,7 +57,7 @@ func TestLuaBudgetFailuresPreserveStateAndSiblings(t *testing.T) {
 					healthy := put(t, healthyAddress, `{"counter":7}`, sink.WriteCreate)
 					ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 					defer cancel()
-					results, err := server.client.Write(ctx, sink.CompletionWaitUntilApplied, limited, healthy)
+					results, err := server.client.Write(ctx, sink.CompletionWaitUntilApplied, []sink.WriteOperation{limited, healthy})
 					if err != nil || len(results) != 2 {
 						t.Fatalf("budget failure poisoned RPC: %+v, %v", results, err)
 					}
@@ -68,7 +68,7 @@ func TestLuaBudgetFailuresPreserveStateAndSiblings(t *testing.T) {
 					if results[1].OperationIndex != 1 || results[1].Status != sink.WriteApplied || results[1].Failure != nil {
 						t.Fatalf("Lua budget failure suppressed healthy sibling: %+v", results[1])
 					}
-					after, err := server.client.Read(ctx, address)
+					after, err := server.client.Read(ctx, []sink.Address{address})
 					if err != nil || len(after) != 1 || after[0].Status != sink.ReadFound || !bytes.Equal(before[0].Document.Payload(), after[0].Document.Payload()) || !bytes.Equal(before[0].Revision.Bytes(), after[0].Revision.Bytes()) {
 						t.Fatalf("failed Lua merge changed persisted document or revision: %+v, %v", after, err)
 					}

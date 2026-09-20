@@ -18,7 +18,7 @@ func TestQueryAndCountRouteCommonCommandAndPageWithoutOverflow(t *testing.T) {
 	command.Headers = []*sink.Header{header}
 	command.Query = "q=a&q=b"
 	request := &sink.QueryRequest{Command: command, Page: ^uint32(0), PageSize: 1000}
-	if _, err := client.Query(t.Context(), request); err != nil {
+	if _, err := collectQuery(t.Context(), client, request); err != nil {
 		t.Fatal(err)
 	}
 	captured := <-backend.queries
@@ -26,7 +26,7 @@ func TestQueryAndCountRouteCommonCommandAndPageWithoutOverflow(t *testing.T) {
 		t.Fatalf("query lost pagination or command: %+v", captured)
 	}
 	request.Page, request.PageSize = 0, 0
-	if _, err := client.Query(t.Context(), request); err != nil {
+	if _, err := collectQuery(t.Context(), client, request); err != nil {
 		t.Fatal(err)
 	}
 	captured = <-backend.queries
@@ -34,7 +34,7 @@ func TestQueryAndCountRouteCommonCommandAndPageWithoutOverflow(t *testing.T) {
 		t.Fatalf("incorrect defaults: %+v", captured)
 	}
 	request.PageSize = 1001
-	if _, err := client.Query(t.Context(), request); status.Code(err) != codes.InvalidArgument {
+	if _, err := collectQuery(t.Context(), client, request); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("invalid page size reached backend: %v", err)
 	}
 	countRequest := &sink.CountRequest{Command: command}

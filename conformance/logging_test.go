@@ -96,7 +96,7 @@ func TestProcessLoggingSurvivesCollectorOutage(t *testing.T) {
 				applied(t, writeAsync(ctx, gateway.client, sink.CompletionWaitUntilApplied, operation), 1)
 				cancel()
 			}
-			found, err := gateway.client.Read(t.Context(), addresses...)
+			found, err := gateway.client.Read(t.Context(), addresses)
 			if err != nil || len(found) != len(addresses) {
 				t.Fatalf("business traffic failed during Collector outage: %v", err)
 			}

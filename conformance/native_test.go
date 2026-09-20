@@ -373,7 +373,7 @@ func TestReturnedWriteBudgetsBelongToOriginalRPC(t *testing.T) {
 			address := addressFor(t, index, "budget")
 			first := put(t, address, fmt.Sprintf(`{"counter":1,"pad":%q}`, strings.Repeat("a", 400)), sink.WriteUpsert).WithReturnedDocument()
 			second := put(t, address, fmt.Sprintf(`{"counter":2,"pad":%q}`, strings.Repeat("b", 400)), sink.WriteUpsert).WithReturnedDocument()
-			results, err := server.client.Write(t.Context(), sink.CompletionWaitUntilApplied, first, second)
+			results, err := server.client.Write(t.Context(), sink.CompletionWaitUntilApplied, []sink.WriteOperation{first, second})
 			if err != nil || len(results) != 2 || results[0].Status != sink.WriteApplied || results[1].Status != sink.WriteFailed ||
 				results[1].Failure == nil || results[1].Failure.Code != sink.FailureResourceExhausted || len(results[1].Document.Payload()) != 0 {
 				t.Fatalf("returned response budget did not reject before the second commit: %+v, %v", results, err)
@@ -446,25 +446,25 @@ func TestNativeWireValidationBeforeExecution(t *testing.T) {
 			command := &sinkv1.Command{Uri: "sink://primary", Method: "POST", Path: "/" + index + "/_search", ContentType: "application/json", Payload: []byte(`{}`)}
 			// Use raw RPCs to bypass SDK validation and qualify the server boundary.
 			tooLarge := &sinkv1.QueryRequest{Command: command, PageSize: 1001}
-			_, err = client.Query(t.Context(), tooLarge)
+			err = rawStreamError(client.Query(t.Context(), tooLarge))
 			if status.Code(err) != codes.InvalidArgument {
 				t.Fatalf("server accepted oversized page: %v", err)
 			}
 			field := &sinkv1.SortField{Field: "counter"}
 			duplicate := &sinkv1.QueryRequest{Command: command, Sort: []*sinkv1.SortField{field, field}}
-			_, err = client.Query(t.Context(), duplicate)
+			err = rawStreamError(client.Query(t.Context(), duplicate))
 			if status.Code(err) != codes.InvalidArgument {
 				t.Fatalf("server accepted duplicate sort: %v", err)
 			}
 			scan := &sinkv1.ScanRequest{Command: command, BatchSize: 1001}
-			_, err = client.Scan(t.Context(), scan)
+			err = rawStreamError(client.Scan(t.Context(), scan))
 			if status.Code(err) != codes.InvalidArgument {
 				t.Fatalf("server accepted oversized scan batch: %v", err)
 			}
 			for _, parameter := range []string{"scroll=2m", "filter_path=hits", "source=%7B%7D", "pit=x"} {
 				command.Query = parameter
 				query := &sinkv1.QueryRequest{Command: command}
-				_, err := client.Query(t.Context(), query)
+				err := rawStreamError(client.Query(t.Context(), query))
 				if status.Code(err) != codes.InvalidArgument {
 					t.Fatalf("server accepted managed pagination parameter %s: %v", parameter, err)
 				}
@@ -477,7 +477,7 @@ func TestNativeWireValidationBeforeExecution(t *testing.T) {
 			action := &sinkv1.WriteOperation_Put{Put: put}
 			operation := &sinkv1.WriteOperation{Address: address, Action: action, ReturnDocument: true}
 			write := &sinkv1.WriteRequest{CompletionMode: sinkv1.CompletionMode_COMPLETION_MODE_RETURN_AFTER_ACCEPTED, Operations: []*sinkv1.WriteOperation{operation}}
-			_, err = client.Write(t.Context(), write)
+			err = rawStreamError(client.Write(t.Context(), write))
 			if status.Code(err) != codes.InvalidArgument {
 				t.Fatalf("server accepted asynchronous returned write: %v", err)
 			}
@@ -504,4 +504,19 @@ func nativeEndpointPath(command sink.Command) string {
 		panic(err)
 	}
 	return address.EscapedPath() + command.Path
+}
+
+func rawStreamError[T any](stream grpc.ServerStreamingClient[T], err error) error {
+	if err != nil {
+		return err
+	}
+	for {
+		_, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
 }

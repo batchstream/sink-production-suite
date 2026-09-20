@@ -64,7 +64,7 @@ func TestNativeBackendScanCheckpointsDuringBusinessChanges(t *testing.T) {
 					{UID: fmt.Sprintf("record-%02d", changed), Counter: int64(changed), Value: "changed"},
 				} {
 					record := sink.Record{Key: sink.StringKey(value.UID), Value: value}
-					results, err := f.dataset.Upsert(t.Context(), sink.CompletionWaitUntilVisible, record)
+					results, err := f.dataset.Upsert(t.Context(), sink.CompletionWaitUntilVisible, []sink.Record{record})
 					if err != nil {
 						t.Fatal(err)
 					}

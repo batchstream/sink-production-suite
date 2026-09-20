@@ -30,6 +30,8 @@ func TestMembershipWithdrawalRetainsInFlightRequestSnapshot(t *testing.T) {
 			t.Cleanup(server.Stop)
 			second := fixtureEngine{store: "a", target: listener.Addr().String()}
 			gateway := testGateway(t, 4096, first)
+			// Queue the second dispatch until membership changes during the first.
+			gateway.config.MaxFanout = 1
 			view := replicaView(t, gateway, []fixtureEngine{first, second})
 			routes := []Route{{endpoint: first.target}, {endpoint: second.target}}
 			operations := make([]*sink.WriteOperation, 2)
@@ -49,7 +51,7 @@ func TestMembershipWithdrawalRetainsInFlightRequestSnapshot(t *testing.T) {
 			defer cancel()
 			request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: operations}
 			done := make(chan *sink.WriteResponse, 1)
-			go func() { response, _ := gateway.Write(ctx, request); done <- response }()
+			go func() { response, _ := collectWrite(ctx, gateway, request); done <- response }()
 			select {
 			case <-slow.entered:
 			case <-ctx.Done():
@@ -120,7 +122,7 @@ func TestRecordAffinityAcrossGatewaysAndRPCBoundaries(t *testing.T) {
 	for i := range 60 {
 		write.Operations = append(write.Operations, put("a", fmt.Sprintf("key-%d", i%30), false))
 	}
-	written, err := first.Write(t.Context(), write)
+	written, err := collectWrite(t.Context(), first, write)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +134,7 @@ func TestRecordAffinityAcrossGatewaysAndRPCBoundaries(t *testing.T) {
 		operation := &sink.ReadOperation{Address: write.Operations[i].Address}
 		read.Operations = append(read.Operations, operation)
 	}
-	found, err := second.Read(t.Context(), read)
+	found, err := collectRead(t.Context(), second, read)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +148,7 @@ func TestRecordAffinityAcrossGatewaysAndRPCBoundaries(t *testing.T) {
 		owners := 0
 		request := &sink.ReadRequest{Operations: []*sink.ReadOperation{operation}}
 		for index, engine := range engines {
-			response, err := engine.core.Read(t.Context(), request)
+			response, err := collectRead(t.Context(), engine.core, request)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -178,7 +180,7 @@ func TestRecordAffinityAcrossGatewaysAndRPCBoundaries(t *testing.T) {
 			t.Fatal(deleted)
 		}
 	}
-	found, err = first.Read(t.Context(), read)
+	found, err = collectRead(t.Context(), first, read)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +191,7 @@ func TestRecordAffinityAcrossGatewaysAndRPCBoundaries(t *testing.T) {
 	}
 }
 
-func TestReplicaReturnBudgetRemainsScopedToOriginalRPC(t *testing.T) {
+func TestReplicaReturnBudgetIsScopedToEachResult(t *testing.T) {
 	engines := []fixtureEngine{testEngine(t, "a", 200), testEngine(t, "a", 200)}
 	gateway := testGateway(t, 200+2*1280, engines[0])
 	replicaView(t, gateway, engines)
@@ -212,18 +214,18 @@ func TestReplicaReturnBudgetRemainsScopedToOriginalRPC(t *testing.T) {
 		t.Fatal("could not find another owner")
 	}
 	request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{first, second}}
-	response, err := gateway.Write(t.Context(), request)
+	response, err := collectWrite(t.Context(), gateway, request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED || response.Results[1].GetFailure().GetCode() != sink.FailureCode_FAILURE_CODE_RESOURCE_EXHAUSTED {
+	if response.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED || response.Results[1].Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
 		t.Fatal(response)
 	}
 	operation := &sink.ReadOperation{Address: second.Address}
 	read := &sink.ReadRequest{Operations: []*sink.ReadOperation{operation}}
-	result, err := gateway.Read(t.Context(), read)
-	if err != nil || result.Results[0].Status != sink.ReadStatus_READ_STATUS_NOT_FOUND {
-		t.Fatalf("over-budget write committed: %v %v", result, err)
+	result, err := collectRead(t.Context(), gateway, read)
+	if err != nil || result.Results[0].Status != sink.ReadStatus_READ_STATUS_FOUND {
+		t.Fatalf("independently budgeted write was not committed: %v %v", result, err)
 	}
 }
 
@@ -233,13 +235,13 @@ func TestGatewayLeavesCustomStorePathOpaque(t *testing.T) {
 	operation := put("a", "placeholder", false)
 	operation.Address.Uri = "sink://a/tenant/bucket/object/version"
 	request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{operation}}
-	written, err := gateway.Write(t.Context(), request)
+	written, err := collectWrite(t.Context(), gateway, request)
 	if err != nil || written.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
 		t.Fatalf("opaque path rejected: %v %v", written, err)
 	}
 	readOperation := &sink.ReadOperation{Address: operation.Address}
 	read := &sink.ReadRequest{Operations: []*sink.ReadOperation{readOperation}}
-	found, err := gateway.Read(t.Context(), read)
+	found, err := collectRead(t.Context(), gateway, read)
 	if err != nil || found.Results[0].Status != sink.ReadStatus_READ_STATUS_FOUND {
 		t.Fatalf("opaque path lost: %v %v", found, err)
 	}

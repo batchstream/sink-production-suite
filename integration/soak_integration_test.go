@@ -340,7 +340,7 @@ func writeSoakWithReconciliation(ctx context.Context, opts soakWriteReconciliati
 	sawTransient := false
 	for {
 		attemptContext, cancel := context.WithTimeout(ctx, soakMutationAttemptTimeout)
-		results, err := opts.client.Write(attemptContext, opts.completion, opts.operation)
+		results, err := opts.client.Write(attemptContext, opts.completion, []sink.WriteOperation{opts.operation})
 		cancel()
 		if err == nil {
 			resultErr := validateSoakWriteResult(results, opts.wantStatus)
@@ -553,7 +553,7 @@ func waitForSoakDocumentState(
 
 func readSoakDocument(ctx context.Context, client *sink.Client, address sink.Address) (soakObservedDocument, error) {
 	observed := soakObservedDocument{}
-	results, err := client.Read(ctx, address)
+	results, err := client.Read(ctx, []sink.Address{address})
 	if err != nil {
 		return observed, err
 	}

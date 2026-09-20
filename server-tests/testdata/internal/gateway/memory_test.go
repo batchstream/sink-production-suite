@@ -57,7 +57,7 @@ func TestStreamedForwardingUsesActualSize(t *testing.T) {
 	op := put("primary", "large", true)
 	op.GetPut().Document.Payload = payload
 	write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{op}}
-	result, err := server.Write(t.Context(), write)
+	result, err := collectWrite(t.Context(), server, write)
 	if err != nil || result.GetResults()[0].GetStatus() != sink.WriteStatus_WRITE_STATUS_APPLIED {
 		t.Fatalf("write: %v %v", result, err)
 	}
@@ -66,7 +66,7 @@ func TestStreamedForwardingUsesActualSize(t *testing.T) {
 	}
 	readOp := &sink.ReadOperation{Address: address("primary", "large")}
 	read := &sink.ReadRequest{Operations: []*sink.ReadOperation{readOp}}
-	response, err := server.Read(t.Context(), read)
+	response, err := collectRead(t.Context(), server, read)
 	if err != nil || !bytes.Equal(response.GetResults()[0].GetDocument().GetPayload(), payload) {
 		t.Fatalf("framed read failed: %v", err)
 	}
@@ -77,69 +77,47 @@ type badFrameEngine struct {
 	mode string
 }
 
-func (s *badFrameEngine) ForwardStream(_ *forward.ForwardRequest, stream grpc.ServerStreamingServer[forward.ResponseFrame]) error {
-	header := &forward.ResponseFrame{Size: 8}
+func (s *badFrameEngine) Forward(req *forward.ForwardRequest, stream grpc.ServerStreamingServer[forward.ForwardResponse]) error {
+	used := &forward.Budget{}
+	final := &forward.ForwardResponse{Version: forwarding.Version, Store: req.GetStore(), Used: used, Complete: true}
 	switch s.mode {
-	case "zero-size":
-		header.Size = 0
-	case "excessive-size":
-		header.Size = 1 << 40
-	case "malformed", "trailing":
-		header.Size = 1
+	case "wrong-store":
+		final.Store = "another"
+	case "wrong-version":
+		final.Version = 0
+	case "missing-final":
+		return nil
+	case "bad-usage":
+		used.Returns = req.GetGrant().GetReturns() + 1
+	case "body-in-final":
+		read := &sink.ReadResponse{}
+		final.Response = &forward.ForwardResponse_Read{Read: read}
 	}
-	if err := stream.Send(header); err != nil {
+	if err := stream.Send(final); err != nil {
 		return err
 	}
-	switch s.mode {
-	case "zero-size", "excessive-size", "truncated":
-		return nil
-	case "malformed", "trailing":
-		frame := &forward.ResponseFrame{Data: []byte{0xff}}
-		if err := stream.Send(frame); err != nil {
-			return err
-		}
-		if s.mode == "trailing" {
-			return stream.Send(frame)
-		}
-		return nil
+	if s.mode == "trailing" {
+		return stream.Send(final)
 	}
-	frame := &forward.ResponseFrame{Data: make([]byte, forwarding.FrameBytes+1)}
-	if s.mode == "oversized" {
-		frame.Data = make([]byte, 1<<20)
-	}
-	return stream.Send(frame)
+	return nil
 }
 
-func TestInvalidStreamCannotAllocateAnnouncedMaximum(t *testing.T) {
-	for _, mode := range []string{"oversized", "overflow", "zero-size", "excessive-size", "truncated", "trailing", "malformed"} {
+func TestTypedStreamRejectsInvalidSettlement(t *testing.T) {
+	for _, mode := range []string{"wrong-store", "wrong-version", "missing-final", "bad-usage", "body-in-final", "trailing"} {
 		t.Run(mode, func(t *testing.T) {
 			backend := &badFrameEngine{mode: mode}
-			target := serveEngine(t, backend)
-			fixture := fixtureEngine{store: "primary", target: target}
+			fixture := fixtureEngine{store: "primary", target: serveEngine(t, backend)}
 			server := testGateway(t, 32<<20, fixture)
-			server.memory = gatewayMemory(t, 2<<20)
-			view := server.current
-			route, err := routeFor(view, "primary")
+			route, err := routeFor(server.current, "primary")
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Exercise the transport error, before public per-operation translation.
-			entry, err := server.pool.acquire(route)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer server.pool.release(entry)
-			ctx := context.Background()
-			request := &forward.ForwardRequest{}
-			_, err = server.forwardStream(ctx, entry, request)
-			if mode == "oversized" && status.Code(err) != codes.ResourceExhausted {
-				t.Fatalf("oversized frame not limited by transport: %v", err)
-			}
-			if mode != "oversized" && mode != "truncated" && status.Code(err) != codes.Internal {
-				t.Fatalf("invalid frame not rejected: %v", err)
-			}
-			if err == nil {
-				t.Fatal("invalid stream succeeded")
+			grant := &forward.Budget{Returns: 4096}
+			request := &forward.ForwardRequest{Grant: grant}
+			call := forwardCall{route: route, request: request, emit: func(*forward.ForwardResponse) error { return nil }}
+			_, err = server.forwardEach(context.Background(), call)
+			if status.Code(err) != codes.Internal {
+				t.Fatalf("invalid settlement accepted: %v", err)
 			}
 		})
 	}

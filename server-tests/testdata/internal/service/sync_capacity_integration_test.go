@@ -99,7 +99,7 @@ func benchmarkSynchronousStorage(b *testing.B, test syncCapacityCase) {
 		request := &sink.WriteRequest{CompletionMode: mode, Operations: []*sink.WriteOperation{operation}}
 		requests[index] = request
 	}
-	seeded, err := client.Write(b.Context(), seed)
+	seeded, err := collectWrite(b.Context(), client, seed)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func benchmarkSynchronousStorage(b *testing.B, test syncCapacityCase) {
 					return
 				}
 				started := time.Now()
-				response, writeErr := client.Write(b.Context(), request)
+				response, writeErr := collectWrite(b.Context(), client, request)
 				elapsed := time.Since(started)
 				durations[index] = elapsed
 				if writeErr != nil || len(response.GetResults()) != 1 || response.GetResults()[0].GetStatus() != sink.WriteStatus_WRITE_STATUS_APPLIED {
@@ -146,7 +146,7 @@ func benchmarkSynchronousStorage(b *testing.B, test syncCapacityCase) {
 	b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "ops/s")
 	b.ReportMetric(float64(durations[(len(durations)-1)*95/100])/float64(time.Millisecond), "p95-ms")
 	b.ReportMetric(float64(durations[(len(durations)-1)*99/100])/float64(time.Millisecond), "p99-ms")
-	stored, err := client.Read(b.Context(), read)
+	stored, err := collectRead(b.Context(), client, read)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func newSyncCapacityClient(b *testing.B, fixture syncCapacityFixture) sink.SinkC
 	}
 	codec := protocol.NewVTProtoCodec()
 	server := grpc.NewServer(grpc.ForceServerCodecV2(codec))
-	sink.RegisterSinkServer(server, batched)
+	sink.RegisterSinkServer(server, batched.RPC())
 	go func() { _ = server.Serve(listener) }()
 	b.Cleanup(server.Stop)
 	connection, err := grpc.NewClient(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions(grpc.ForceCodecV2(codec)))

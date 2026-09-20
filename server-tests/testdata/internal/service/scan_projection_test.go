@@ -16,7 +16,7 @@ func TestScanProjectionSurvivesWireAndRejectsInvalidFields(t *testing.T) {
 	request := &sink.ScanRequest{Command: nativeSearchRequest().Command}
 	for _, projection := range []*sink.Projection{nil, {}, {Fields: []string{"name", "nested.value"}}, {Fields: []string{"_id"}, Exclude: true}} {
 		request.Projection = projection
-		if _, err := client.Scan(t.Context(), request); err != nil {
+		if _, err := collectScan(t.Context(), client, request); err != nil {
 			t.Fatal(err)
 		}
 		captured := (<-backend.scans).Projection
@@ -29,7 +29,7 @@ func TestScanProjectionSurvivesWireAndRejectsInvalidFields(t *testing.T) {
 	}
 	for _, fields := range [][]string{{""}, {" "}, {"name", "name"}} {
 		request.Projection = &sink.Projection{Fields: fields}
-		if _, err := client.Scan(t.Context(), request); status.Code(err) != codes.InvalidArgument {
+		if _, err := collectScan(t.Context(), client, request); status.Code(err) != codes.InvalidArgument {
 			t.Fatalf("invalid projection accepted: %v", err)
 		}
 	}

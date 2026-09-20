@@ -26,7 +26,7 @@ func TestReliabilityRejectsOversizedAsyncMutation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, operation)
+	results, err := environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, []sink.WriteOperation{operation})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestReliabilityRejectsOversizedAsyncMutation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err = environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, validOperation)
+	results, err = environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, []sink.WriteOperation{validOperation})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores(t *testing.T) {
 			addresses[i] = secondary
 		}
 	}
-	results, err := firstAttempt.Read(ctx, addresses...)
+	results, err := firstAttempt.Read(ctx, addresses)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores(t *testing.T) {
 	}
 	t.Logf("first response: %d found, %d retryable budget rejections", found, exhausted)
 	// The normal SDK retries only unresolved entries, eventually reading all.
-	results, err = environment.client.Read(ctx, addresses...)
+	results, err = environment.client.Read(ctx, addresses)
 	if err != nil || len(results) != len(addresses) {
 		t.Fatalf("read with SDK retries: %d results, error=%v", len(results), err)
 	}
@@ -133,7 +133,7 @@ func TestReliabilityLuaAliasExpansionIsRejectedWithoutWriting(t *testing.T) {
 end`)
 	incoming := map[string]any{"value": strings.Repeat("x", 4096)}
 	operation := newMergeOperation(t, address, incoming, source)
-	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilApplied, operation)
+	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilApplied, []sink.WriteOperation{operation})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestReliabilityDeadLetterRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		results, err := environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, create, update)
+		results, err := environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, []sink.WriteOperation{create, update})
 		if err != nil {
 			t.Fatal(err)
 		}

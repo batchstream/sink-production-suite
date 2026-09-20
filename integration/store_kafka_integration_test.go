@@ -39,10 +39,9 @@ func TestStoreKafkaRoutingAndSyncOnlyBehavior(t *testing.T) {
 	results, err := environment.client.Write(
 		ctx,
 		sink.CompletionReturnAfterAccepted,
-		primaryPut,
-		secondaryPut,
-		syncOnlyAsyncPut,
-	)
+		[]sink.WriteOperation{primaryPut,
+			secondaryPut,
+			syncOnlyAsyncPut})
 	if err != nil {
 		t.Fatalf("Write(mixed store async batch) error = %v", err)
 	}
@@ -76,7 +75,7 @@ func TestStoreKafkaRoutingAndSyncOnlyBehavior(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sink.NewPut(sync-only synchronous) error = %v", err)
 	}
-	results, err = environment.client.Write(ctx, sink.CompletionWaitUntilVisible, syncOnlyPut)
+	results, err = environment.client.Write(ctx, sink.CompletionWaitUntilVisible, []sink.WriteOperation{syncOnlyPut})
 	if err != nil {
 		t.Fatalf("Write(sync-only synchronous) error = %v", err)
 	}
@@ -111,7 +110,7 @@ func waitForDocumentFound(t *testing.T, ctx context.Context, client *sink.Client
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		results, err := client.Read(ctx, address)
+		results, err := client.Read(ctx, []sink.Address{address})
 		if err == nil && len(results) == 1 && results[0].Status == sink.ReadFound {
 			return
 		}
@@ -125,7 +124,7 @@ func waitForDocumentFound(t *testing.T, ctx context.Context, client *sink.Client
 
 func assertDocumentNotFound(t *testing.T, ctx context.Context, client *sink.Client, address sink.Address) {
 	t.Helper()
-	results, err := client.Read(ctx, address)
+	results, err := client.Read(ctx, []sink.Address{address})
 	if err != nil {
 		t.Fatalf("Read(sync-only after async rejection) error = %v", err)
 	}

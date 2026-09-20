@@ -42,11 +42,11 @@ func TestNativeRPCRejectsInvalidUTF8CommandFields(t *testing.T) {
 			execute := &sink.ExecuteRequest{Command: command}
 			_, executeErr := client.Execute(t.Context(), execute, codec)
 			query := &sink.QueryRequest{Command: command}
-			_, queryErr := client.Query(t.Context(), query, codec)
+			_, queryErr := collectQuery(t.Context(), client, query, codec)
 			count := &sink.CountRequest{Command: command}
 			_, countErr := client.Count(t.Context(), count, codec)
 			scan := &sink.ScanRequest{Command: command}
-			_, scanErr := client.Scan(t.Context(), scan, codec)
+			_, scanErr := collectScan(t.Context(), client, scan, codec)
 			for method, err := range map[string]error{"Execute": executeErr, "Query": queryErr, "Count": countErr, "Scan": scanErr} {
 				if status.Code(err) != codes.InvalidArgument {
 					t.Errorf("%s accepted invalid UTF-8 %s: %v", method, field, err)
@@ -68,7 +68,7 @@ func TestQueryRejectsInvalidUTF8FieldsBeforeDispatch(t *testing.T) {
 			field := &sink.SortField{Field: "field\xff"}
 			request.Sort = []*sink.SortField{field}
 		}
-		_, err := client.Query(t.Context(), request, codec)
+		_, err := collectQuery(t.Context(), client, request, codec)
 		if status.Code(err) != codes.InvalidArgument {
 			t.Errorf("invalid query field accepted: projection=%v error=%v", projection, err)
 		}

@@ -312,7 +312,7 @@ func execute(ctx context.Context, opts settings) (report, error) {
 			operation := &sink.ReadOperation{Address: address(opts, 0)}
 			request := &sink.ReadRequest{Operations: []*sink.ReadOperation{operation}}
 			call, cancel := context.WithTimeout(ctx, 30*time.Second)
-			response, err := client.Read(call, request)
+			response, err := collectRead(call, client, request)
 			cancel()
 			if err != nil {
 				return result, fmt.Errorf("warm gRPC channel: %w", err)
@@ -482,7 +482,7 @@ func seed(ctx context.Context, opts settings, client sink.SinkClient) error {
 			request.Operations = append(request.Operations, operation)
 		}
 		call, cancel := context.WithTimeout(ctx, 30*time.Second)
-		response, err := client.Write(call, request)
+		response, err := collectWrite(call, client, request)
 		cancel()
 		if err != nil {
 			return fmt.Errorf("seed disposable dataset: %w", err)
@@ -603,7 +603,7 @@ func (w *worker) read(ctx context.Context, opts settings, keys []int) bool {
 		operation := &sink.ReadOperation{Address: address(opts, w.keys[key])}
 		request.Operations = append(request.Operations, operation)
 	}
-	response, err := w.client.Read(ctx, request)
+	response, err := collectRead(ctx, w.client, request)
 	if err != nil {
 		w.errors[status.Code(err).String()]++
 		return false
@@ -677,7 +677,7 @@ func (w *worker) write(ctx context.Context, opts settings, keys []int) bool {
 		}
 		request.Operations = append(request.Operations, operation)
 	}
-	response, err := w.client.Write(ctx, request)
+	response, err := collectWrite(ctx, w.client, request)
 	if err != nil {
 		w.errors[status.Code(err).String()]++
 		for _, key := range keys {
@@ -750,7 +750,7 @@ func verify(ctx context.Context, opts settings, workers []*worker) (bool, int64,
 			request.Operations = append(request.Operations, operation)
 		}
 		call, cancel := context.WithTimeout(ctx, 30*time.Second)
-		response, err := workers[0].client.Read(call, request)
+		response, err := collectRead(call, workers[0].client, request)
 		cancel()
 		limited := status.Code(err) == codes.ResourceExhausted
 		for _, item := range response.GetResults() {

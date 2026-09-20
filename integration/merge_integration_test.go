@@ -24,7 +24,7 @@ func TestProductMergeMatchesReferenceThroughSinkAndOpenSearch(t *testing.T) {
 	defer cancel()
 	writePut(t, ctx, environment.client, address, current)
 	operation := newMergeOperation(t, address, incoming, programs.ProductMerge)
-	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilVisible, operation)
+	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilVisible, []sink.WriteOperation{operation})
 	if err != nil {
 		t.Fatalf("Write(product merge) error = %v", err)
 	}
@@ -46,7 +46,7 @@ func TestOfferMergeMatchesReferenceThroughSinkAndOpenSearch(t *testing.T) {
 	defer cancel()
 	writePut(t, ctx, environment.client, address, current)
 	operation := newMergeOperation(t, address, incoming, programs.OfferMerge)
-	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilVisible, operation)
+	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilVisible, []sink.WriteOperation{operation})
 	if err != nil {
 		t.Fatalf("Write(offer merge) error = %v", err)
 	}
@@ -95,7 +95,7 @@ func TestConcurrentProductMergesAcrossSinkReplicasLoseNoSuccessfulUpdates(t *tes
 				client = environment.secondaryClient
 			}
 			requestContext, requestCancel := context.WithTimeout(ctx, 30*time.Second)
-			results, err := client.Write(requestContext, sink.CompletionWaitUntilApplied, operations[index])
+			results, err := client.Write(requestContext, sink.CompletionWaitUntilApplied, []sink.WriteOperation{operations[index]})
 			requestCancel()
 			if err != nil {
 				errorsChannel <- err

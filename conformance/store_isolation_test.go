@@ -69,7 +69,7 @@ func TestStoreIsolatedGatewayPublicContract(t *testing.T) {
 	firstOp := put(t, firstAddress, `{"counter":1}`, sink.WriteUpsert)
 	secondOp := put(t, secondAddress, `{"counter":2}`, sink.WriteUpsert)
 	applied(t, writeAsync(t.Context(), gateway.client, sink.CompletionWaitUntilVisible, firstOp, secondOp), 2)
-	records, err := gateway.client.Read(t.Context(), secondAddress, firstAddress, secondAddress)
+	records, err := gateway.client.Read(t.Context(), []sink.Address{secondAddress, firstAddress, secondAddress})
 	if err != nil {
 		t.Fatal(err)
 	}

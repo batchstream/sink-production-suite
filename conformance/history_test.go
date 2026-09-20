@@ -154,7 +154,7 @@ func runHistoryCall(ctx context.Context, client *sink.Client, address sink.Addre
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if entry.Kind == historycheck.Read {
-		results, err := client.Read(ctx, address)
+		results, err := client.Read(ctx, []sink.Address{address})
 		if err != nil || len(results) != 1 {
 			return result, fmt.Errorf("read result count=%d error=%v", len(results), err)
 		}
@@ -212,7 +212,7 @@ func runHistoryCall(ctx context.Context, client *sink.Client, address sink.Addre
 	if err != nil {
 		return result, err
 	}
-	results, err := client.Write(ctx, sink.CompletionWaitUntilApplied, operation)
+	results, err := client.Write(ctx, sink.CompletionWaitUntilApplied, []sink.WriteOperation{operation})
 	if err != nil || len(results) != 1 || results[0].OperationIndex != 0 {
 		return result, fmt.Errorf("write: %+v, %v", results, err)
 	}

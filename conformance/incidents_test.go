@@ -213,7 +213,7 @@ func TestReadBudgetsBelongToOriginalRPC(t *testing.T) {
 			raw := `{"value":"` + strings.Repeat("x", 80) + `"}`
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied,
 				put(t, a, raw, sink.WriteUpsert), put(t, b, raw, sink.WriteUpsert)), 2)
-			control, err := server.client.Read(t.Context(), a)
+			control, err := server.client.Read(t.Context(), []sink.Address{a})
 			if err != nil || len(control) != 1 || control[0].Status != sink.ReadFound {
 				t.Fatalf("single-RPC budget control failed: %+v, %v", control, err)
 			}
@@ -224,7 +224,7 @@ func TestReadBudgetsBelongToOriginalRPC(t *testing.T) {
 			done := make(chan outcome, 2)
 			for i, address := range []sink.Address{a, b} {
 				go func() {
-					results, err := server.client.Read(t.Context(), address)
+					results, err := server.client.Read(t.Context(), []sink.Address{address})
 					result := outcome{results: results, err: err}
 					done <- result
 				}()
@@ -244,7 +244,7 @@ func TestReadBudgetsBelongToOriginalRPC(t *testing.T) {
 			}
 			// Repeated result documents still count twice within one RPC, even
 			// if the backend snapshot is deduplicated. SDK retries are disabled.
-			results, err := server.client.Read(t.Context(), a, a)
+			results, err := server.client.Read(t.Context(), []sink.Address{a, a})
 			if err != nil || len(results) != 2 || results[0].Status != sink.ReadFound || results[1].Status != sink.ReadFailed ||
 				results[1].Failure == nil || results[1].Failure.Code != sink.FailureResourceExhausted {
 				t.Fatalf("duplicate read escaped output budget: %+v, %v", results, err)
@@ -317,7 +317,7 @@ func TestReplaceRechecksExistenceAfterConflict(t *testing.T) {
 				if proxy.count("/_bulk", "sibling") != 1 || proxy.count("/_mget", "replace") != 2 {
 					t.Fatal("replace retry did not reread exactly once or replayed its successful sibling")
 				}
-				results, err := server.client.Read(t.Context(), replaced)
+				results, err := server.client.Read(t.Context(), []sink.Address{replaced})
 				if err != nil || len(results) != 1 {
 					t.Fatalf("read replacement: %+v %v", results, err)
 				}
@@ -375,7 +375,7 @@ func assertCounter(t *testing.T, client *sink.Client, address sink.Address, want
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	results, err := client.Read(ctx, address)
+	results, err := client.Read(ctx, []sink.Address{address})
 	if err != nil || len(results) != 1 || results[0].Status != sink.ReadFound {
 		t.Fatalf("read %s: %+v, %v", address.URI(), results, err)
 	}

@@ -106,7 +106,7 @@ func runSequence(t *testing.T, opts Options, name string, sequence []step) {
 			return
 		}
 		attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
-		results, err := opts.Client.Write(attempt, sink.CompletionWaitUntilApplied, operations...)
+		results, err := opts.Client.Write(attempt, sink.CompletionWaitUntilApplied, operations)
 		cancel()
 		if err != nil || len(results) != len(expected) {
 			t.Fatalf("%s at step %d sequence=%+v: RPC=%v results=%+v", name, position, sequence[:position+1], err, results)
@@ -230,7 +230,7 @@ func checkState(t *testing.T, ctx context.Context, check readCheck) {
 	for i, key := range keys {
 		addresses[i] = check.addresses[key]
 	}
-	results, err := check.client.Read(ctx, addresses...)
+	results, err := check.client.Read(ctx, addresses)
 	if err != nil || len(results) != len(addresses) {
 		t.Fatalf("%s read: %+v, %v", check.name, results, err)
 	}

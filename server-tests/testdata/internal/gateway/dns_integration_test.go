@@ -58,7 +58,7 @@ func TestGatewayDiscoversDNSScaleChanges(t *testing.T) {
 		t.Helper()
 		attempts++
 		request.Operations[0] = put("a", fmt.Sprintf("key-%d", attempts), false)
-		response, err := gateway.Write(ctx, request)
+		response, err := collectWrite(ctx, gateway, request)
 		if err != nil || response.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
 			t.Fatalf("write: %v %v", response, err)
 		}

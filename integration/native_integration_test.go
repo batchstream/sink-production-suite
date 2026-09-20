@@ -82,7 +82,7 @@ func (f *nativeFixture) seed(t *testing.T, count int) {
 		record := sink.Record{Key: sink.StringKey(value.UID), Value: value}
 		records[i] = record
 	}
-	results, err := f.dataset.Create(t.Context(), sink.CompletionWaitUntilVisible, records...)
+	results, err := f.dataset.Create(t.Context(), sink.CompletionWaitUntilVisible, records)
 	if err != nil || len(results) != count {
 		t.Fatalf("seed: %v, %d results", err, len(results))
 	}
@@ -360,7 +360,7 @@ func TestNativeBackendQueryCountScan(t *testing.T) {
 func TestNativeBackendExecute(t *testing.T) {
 	nativeFixtures(t, func(t *testing.T, f *nativeFixture) {
 		f.seed(t, 1)
-		before, err := f.dataset.Read(t.Context(), sink.StringKey("record-00"))
+		before, err := f.dataset.Read(t.Context(), []sink.Key{sink.StringKey("record-00")})
 		if err != nil || len(before) != 1 || before[0].Status != sink.ReadFound {
 			t.Fatalf("read before native write: %+v, %v", before, err)
 		}
@@ -381,7 +381,7 @@ func TestNativeBackendExecute(t *testing.T) {
 		address := sinkAddressForStore(t, f.spec.name, f.name, "record-00")
 		want := backendExpectation{client: f.environment.secondaryClient, address: address, wantUID: "record-00", wantValue: "retained", wantCounter: 1, wantUpdated: true}
 		assertBackendDocument(t, t.Context(), want)
-		after, err := f.environment.secondaryClient.Read(t.Context(), address)
+		after, err := f.environment.secondaryClient.Read(t.Context(), []sink.Address{address})
 		if err != nil || len(after) != 1 || after[0].Status != sink.ReadFound || bytes.Equal(before[0].Revision.Bytes(), after[0].Revision.Bytes()) {
 			t.Fatalf("native write did not invalidate the revision seen by the other server: %+v, %v", after, err)
 		}
@@ -409,7 +409,7 @@ func TestNativeBackendExecute(t *testing.T) {
 			if !errors.As(err, &nativeError) || result.Success || bson.Raw(result.Payload).Lookup("writeErrors").Type != bson.TypeArray {
 				t.Fatalf("partial MongoDB write lost its native error: %s err=%v", bson.Raw(result.Payload), err)
 			}
-			persisted, err := f.dataset.Read(t.Context(), sink.StringKey("partial-batch-success"))
+			persisted, err := f.dataset.Read(t.Context(), []sink.Key{sink.StringKey("partial-batch-success")})
 			if err != nil || len(persisted) != 1 || persisted[0].Status != sink.ReadFound {
 				t.Fatalf("unordered batch lost its successful sibling: %+v err=%v", persisted, err)
 			}
@@ -448,7 +448,7 @@ func TestNativeBackendReturnedWrites(t *testing.T) {
 		}
 		returned := operation.WithReturnedDocument()
 		operations := []sink.WriteOperation{returned, operation, returned}
-		results, err := f.environment.client.Write(t.Context(), sink.CompletionWaitUntilVisible, operations...)
+		results, err := f.environment.client.Write(t.Context(), sink.CompletionWaitUntilVisible, operations)
 		if err != nil || len(results) != 3 {
 			t.Fatalf("returned chain: %+v, %v", results, err)
 		}
@@ -483,7 +483,7 @@ func TestNativeBackendReturnedWrites(t *testing.T) {
 				}
 				ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 				defer cancel()
-				result, err := client.Write(ctx, sink.CompletionWaitUntilApplied, returned)
+				result, err := client.Write(ctx, sink.CompletionWaitUntilApplied, []sink.WriteOperation{returned})
 				outcomes <- result
 				failures <- err
 			})
@@ -529,7 +529,7 @@ func TestNativeBackendReturnedWrites(t *testing.T) {
 		// Exercise Dataset's returned-document option and BatchError together.
 		value := backendDocument{UID: "record-00", Counter: 999}
 		record := sink.Record{Key: sink.StringKey("record-00"), Value: value, ReturnDocument: true}
-		failed, err := f.dataset.Create(t.Context(), sink.CompletionWaitUntilApplied, record)
+		failed, err := f.dataset.Create(t.Context(), sink.CompletionWaitUntilApplied, []sink.Record{record})
 		var batchError *sink.BatchError
 		if !errors.As(err, &batchError) || len(failed) != 1 || failed[0].Status != sink.WritePreconditionFailed || len(failed[0].Document.Payload()) != 0 {
 			t.Fatalf("failed create returned an uncommitted document: %+v, %v", failed, err)
@@ -537,7 +537,7 @@ func TestNativeBackendReturnedWrites(t *testing.T) {
 		assertBackendDocument(t, t.Context(), want)
 		value.Counter = 9007199254740993
 		record.Value = value
-		replaced, err := f.dataset.Replace(t.Context(), sink.CompletionWaitUntilApplied, record)
+		replaced, err := f.dataset.Replace(t.Context(), sink.CompletionWaitUntilApplied, []sink.Record{record})
 		if err != nil || len(replaced) != 1 || replaced[0].Status != sink.WriteApplied {
 			t.Fatalf("Dataset returned replacement: %+v, %v", replaced, err)
 		}

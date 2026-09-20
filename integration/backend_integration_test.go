@@ -69,7 +69,7 @@ func testConfiguredBackend(t *testing.T, environment *testEnvironment, spec back
 	if err != nil {
 		t.Fatalf("sink.NewPut(create) error = %v", err)
 	}
-	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilVisible, create)
+	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilVisible, []sink.WriteOperation{create})
 	if err != nil {
 		t.Fatalf("Write(create) error = %v", err)
 	}
@@ -83,7 +83,7 @@ func testConfiguredBackend(t *testing.T, environment *testEnvironment, spec back
 	}
 	assertBackendDocument(t, ctx, initialExpectation)
 
-	results, err = environment.secondaryClient.Write(ctx, sink.CompletionWaitUntilApplied, create)
+	results, err = environment.secondaryClient.Write(ctx, sink.CompletionWaitUntilApplied, []sink.WriteOperation{create})
 	if err != nil {
 		t.Fatalf("Write(duplicate create) error = %v", err)
 	}
@@ -119,7 +119,7 @@ func testConfiguredBackend(t *testing.T, environment *testEnvironment, spec back
 				client = environment.secondaryClient
 			}
 			requestContext, requestCancel := context.WithTimeout(ctx, 30*time.Second)
-			mergeResults, writeErr := client.Write(requestContext, sink.CompletionWaitUntilApplied, merge)
+			mergeResults, writeErr := client.Write(requestContext, sink.CompletionWaitUntilApplied, []sink.WriteOperation{merge})
 			requestCancel()
 			if writeErr != nil {
 				errorsChannel <- writeErr
@@ -155,7 +155,7 @@ func testConfiguredBackend(t *testing.T, environment *testEnvironment, spec back
 	if err != nil {
 		t.Fatalf("sink.NewPut(async) error = %v", err)
 	}
-	results, err = environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, asyncPut)
+	results, err = environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, []sink.WriteOperation{asyncPut})
 	if err != nil {
 		t.Fatalf("Write(async) error = %v", err)
 	}
@@ -205,7 +205,7 @@ func assertBackendDocument(
 	expectation backendExpectation,
 ) {
 	t.Helper()
-	results, err := expectation.client.Read(ctx, expectation.address)
+	results, err := expectation.client.Read(ctx, []sink.Address{expectation.address})
 	if err != nil {
 		t.Fatalf("Read(backend document) error = %v", err)
 	}
@@ -243,7 +243,7 @@ func waitForDocumentNotFound(t *testing.T, ctx context.Context, client *sink.Cli
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		results, err := client.Read(ctx, address)
+		results, err := client.Read(ctx, []sink.Address{address})
 		if err == nil && len(results) == 1 && results[0].Status == sink.ReadNotFound {
 			return
 		}

@@ -53,7 +53,7 @@ func TestGatewayDNSWithdrawalDrainBoundary(t *testing.T) {
 				attempts++
 				ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
 				defer cancel()
-				response, err := gateway.Write(ctx, request)
+				response, err := collectWrite(ctx, gateway, request)
 				if err == nil && response.Results[0].Status == sink.WriteStatus_WRITE_STATUS_APPLIED {
 					successes++
 					return true
