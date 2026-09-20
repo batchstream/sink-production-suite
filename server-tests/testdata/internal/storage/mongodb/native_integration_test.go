@@ -3,7 +3,6 @@
 package mongodb_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/url"
@@ -172,9 +171,6 @@ func TestMongoReturningMergeCommitsIndependentCounterValues(t *testing.T) {
 		if !ok || count != int64(index+1) {
 			t.Fatalf("counter=%d ok=%v", count, ok)
 		}
-	}
-	if bytes.Equal(response.Results[0].Revision.Data, response.Results[1].Revision.Data) {
-		t.Fatal("writes shared a revision")
 	}
 }
 

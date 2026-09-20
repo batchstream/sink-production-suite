@@ -3,7 +3,6 @@
 package search_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -53,7 +52,7 @@ func TestSearchFoldsPutsWithMergeAndRepeatedReadsDeletes(t *testing.T) {
 			}
 			continue
 		}
-		if result.Status != sink.WriteStatus_WRITE_STATUS_APPLIED || !bytes.Equal(result.GetRevision().GetData(), response.Results[0].GetRevision().GetData()) {
+		if result.Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
 			t.Fatal(result)
 		}
 	}

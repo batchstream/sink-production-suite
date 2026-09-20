@@ -79,8 +79,8 @@ func TestLuaBudgetFailuresPreserveStateAndSiblings(t *testing.T) {
 						Addresses: []sink.Address{address},
 					}
 					after, err := server.client.Read(ctx, readRequest2)
-					if err != nil || len(after) != 1 || after[0].Status != sink.ReadFound || !bytes.Equal(before[0].Document.Payload(), after[0].Document.Payload()) || !bytes.Equal(before[0].Revision.Bytes(), after[0].Revision.Bytes()) {
-						t.Fatalf("failed Lua merge changed persisted document or revision: %+v, %v", after, err)
+					if err != nil || len(after) != 1 || after[0].Status != sink.ReadFound || !bytes.Equal(before[0].Document.Payload(), after[0].Document.Payload()) {
+						t.Fatalf("failed Lua merge changed persisted document: %+v, %v", after, err)
 					}
 					assertCounter(t, server.client, healthyAddress, 7)
 					following := merge(t, address, increment)

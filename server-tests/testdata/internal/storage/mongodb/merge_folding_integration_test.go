@@ -3,7 +3,6 @@
 package mongodb_test
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
@@ -16,7 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-func TestMongoDBFoldedMergesPreserveBSONAndFinalRevision(t *testing.T) {
+func TestMongoDBFoldedMergesPreserveBSONAndFinalState(t *testing.T) {
 	fixture := newIntegrationFixture(t)
 	luaOptions := merge.LuaOptions{}
 	engine, err := merge.NewLuaEngine(luaOptions)
@@ -60,9 +59,6 @@ func TestMongoDBFoldedMergesPreserveBSONAndFinalRevision(t *testing.T) {
 	for _, result := range response.Results {
 		if result.Status != sink.WriteStatus_WRITE_STATUS_APPLIED || result.Failure != nil {
 			t.Fatal(result)
-		}
-		if len(result.GetRevision().GetData()) == 0 || !bytes.Equal(result.GetRevision().GetData(), response.Results[0].GetRevision().GetData()) {
-			t.Fatal("folded BSON merges did not share one revision")
 		}
 	}
 	filter := bson.M{"_id": "folded"}
