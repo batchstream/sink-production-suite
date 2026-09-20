@@ -40,6 +40,16 @@ git -C "${SINK_SERVER_DIR}" diff HEAD > "${SINK_CONFORMANCE_ARTIFACTS}/server.pa
 git -C "${suite_dir}" diff HEAD > "${SINK_CONFORMANCE_ARTIFACTS}/suite.patch"
 "${compose[@]}" config > "${SINK_CONFORMANCE_ARTIFACTS}/compose.yaml"
 go -C "${SINK_SERVER_DIR}" build -race -o "${SINK_SERVER_BINARY}" ./cmd/sink
+# Reject stale release fixtures before starting backends or long-running tests.
+for config in "${suite_dir}"/deploy/gateway*.yaml; do
+  "${SINK_SERVER_BINARY}" config check --config "${config}"
+done
+for role in engines workers; do
+  for config in "${suite_dir}/deploy/${role}"/*.yaml; do
+    "${SINK_SERVER_BINARY}" config check --config "${config}" \
+      --store-config "${suite_dir}/deploy/stores/${config##*/}"
+  done
+done
 "${compose[@]}" up --detach --wait --wait-timeout 180 elasticsearch opensearch
 export SINK_CONFORMANCE_ELASTICSEARCH="http://$("${compose[@]}" port elasticsearch 9200)"
 export SINK_CONFORMANCE_OPENSEARCH="http://$("${compose[@]}" port opensearch 9200)"
