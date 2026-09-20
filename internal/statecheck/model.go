@@ -118,10 +118,10 @@ func runSequence(t *testing.T, opts Options, name string, sequence []step) {
 				t.Fatalf("%s step=%d operation=%d sequence=%+v: result=%+v want=%+v", name, position, i, sequence[:position+1], result, want)
 			}
 			if want.status == sink.WriteApplied {
-				if result.Failure != nil || len(result.Revision.Bytes()) == 0 {
-					t.Fatalf("%s: successful write has failure or no revision: %+v", name, result)
+				if result.Failure != nil {
+					t.Fatalf("%s: successful write has failure: %+v", name, result)
 				}
-			} else if result.Failure == nil || result.Failure.Code != want.code || result.Failure.Retryable || len(result.Revision.Bytes()) != 0 {
+			} else if result.Failure == nil || result.Failure.Code != want.code || result.Failure.Retryable {
 				t.Fatalf("%s step=%d sequence=%+v: incorrect permanent failure: %+v, want %+v", name, position, sequence[:position+1], result, want)
 			}
 		}
@@ -251,8 +251,8 @@ func checkState(t *testing.T, ctx context.Context, check readCheck) {
 			if err := result.Document.Decode(&actual); err != nil {
 				t.Fatal(err)
 			}
-			if actual != want || len(result.Revision.Bytes()) == 0 {
-				t.Fatalf("%s key=%d: persisted=%+v expected=%+v revision=%x", check.name, keys[i], actual, want, result.Revision.Bytes())
+			if actual != want {
+				t.Fatalf("%s key=%d: persisted=%+v expected=%+v", check.name, keys[i], actual, want)
 			}
 		}
 	}

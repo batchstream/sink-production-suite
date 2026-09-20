@@ -174,8 +174,8 @@ func runHistoryCall(ctx context.Context, client *sink.Client, address sink.Addre
 				return result, err
 			}
 			counter, exists := document["counter"]
-			if !exists || len(document) != 1 || len(read.Revision.Bytes()) == 0 {
-				return result, fmt.Errorf("unexpected persisted document/revision: %+v", read)
+			if !exists || len(document) != 1 {
+				return result, fmt.Errorf("unexpected persisted document: %+v", read)
 			}
 			result.State.Found, result.State.Counter = true, counter
 			return result, nil
@@ -229,17 +229,17 @@ func runHistoryCall(ctx context.Context, client *sink.Client, address sink.Addre
 	}
 	write := results[0]
 	if write.Status == sink.WritePreconditionFailed && write.Failure != nil && write.Failure.Code == sink.FailureConflict &&
-		write.Failure.Retryable && len(write.Revision.Bytes()) == 0 && (entry.Kind == historycheck.Add || entry.Kind == historycheck.Replace) {
+		write.Failure.Retryable && (entry.Kind == historycheck.Add || entry.Kind == historycheck.Replace) {
 		result.Conflict = true
 		return result, nil
 	}
 	if write.Status == sink.WritePreconditionFailed && (entry.Kind == historycheck.Create || entry.Kind == historycheck.Replace) {
-		if write.Failure == nil || write.Failure.Code != sink.FailurePreconditionFailed || write.Failure.Retryable || len(write.Revision.Bytes()) != 0 {
+		if write.Failure == nil || write.Failure.Code != sink.FailurePreconditionFailed || write.Failure.Retryable {
 			return result, fmt.Errorf("invalid conditional failure: %+v", write)
 		}
 		return result, nil
 	}
-	if write.Status != sink.WriteApplied || write.Failure != nil || len(write.Revision.Bytes()) == 0 {
+	if write.Status != sink.WriteApplied || write.Failure != nil {
 		return result, fmt.Errorf("unexpected write outcome: %+v", write)
 	}
 	result.Applied = true

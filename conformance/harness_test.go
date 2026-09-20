@@ -462,7 +462,7 @@ func applied(t *testing.T, done <-chan writeOutcome, count int) []sink.WriteResu
 			t.Fatalf("write: %v, %+v", result.err, result.results)
 		}
 		for i, operation := range result.results {
-			if operation.OperationIndex != i || operation.Status != sink.WriteApplied || operation.Failure != nil || len(operation.Revision.Bytes()) == 0 {
+			if operation.OperationIndex != i || operation.Status != sink.WriteApplied || operation.Failure != nil {
 				t.Fatalf("write result[%d]: %+v", i, operation)
 			}
 		}

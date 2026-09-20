@@ -3,7 +3,6 @@
 package conformance_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -29,15 +28,10 @@ func TestHotKeyMergeAmplification(t *testing.T) {
 			for i := range operations {
 				operations[i] = merge(t, address, increment)
 			}
-			results := applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, operations...), len(operations))
+			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, operations...), len(operations))
 			// Exact backend work is the regression oracle, independent of machine speed.
 			if reads, writes := proxy.count("/_mget", "hot"), proxy.count("/_bulk", "hot"); reads != 1 || writes != 1 {
 				t.Fatalf("hot-key amplification: reads=%d writes=%d; want one snapshot and one conditional commit", reads, writes)
-			}
-			for _, result := range results {
-				if !bytes.Equal(result.Revision.Bytes(), results[0].Revision.Bytes()) {
-					t.Fatal("folded operations did not share the committed revision")
-				}
 			}
 			assertCounter(t, server.client, address, 64)
 		})

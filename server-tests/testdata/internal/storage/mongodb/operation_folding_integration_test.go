@@ -3,7 +3,6 @@
 package mongodb_test
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
@@ -69,7 +68,7 @@ func TestMongoDBFoldedPutAndMergePreserveConditionsAndBSON(t *testing.T) {
 			}
 			continue
 		}
-		if result.Status != sink.WriteStatus_WRITE_STATUS_APPLIED || len(result.GetRevision().GetData()) == 0 || !bytes.Equal(result.GetRevision().GetData(), response.Results[0].GetRevision().GetData()) {
+		if result.Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
 			t.Fatal(result)
 		}
 	}

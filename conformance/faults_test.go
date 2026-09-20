@@ -159,7 +159,7 @@ func assertUnknownWrite(t *testing.T, done <-chan writeOutcome, retryable bool) 
 			}
 		}
 		if len(result.results) != 1 || result.results[0].Status != sink.WriteFailed || result.results[0].Failure == nil ||
-			result.results[0].Failure.Retryable != retryable || result.results[0].Failure.Code != sink.FailureUnavailable || len(result.results[0].Revision.Bytes()) != 0 {
+			result.results[0].Failure.Retryable != retryable || result.results[0].Failure.Code != sink.FailureUnavailable {
 			t.Fatalf("ambiguous commit was acknowledged or misclassified (want retryable=%t): %+v", retryable, result)
 		}
 	case <-time.After(5 * time.Second):

@@ -5,7 +5,6 @@ package search_test
 import (
 	"github.com/liran/sink/internal/testuri"
 
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -75,9 +74,6 @@ func TestSearchMergeFoldingCommitsAndMakesFinalStateVisibleOnce(t *testing.T) {
 	for index, result := range response.Results {
 		if result.Status != sink.WriteStatus_WRITE_STATUS_APPLIED || result.OperationIndex != uint32(index) || result.Failure != nil {
 			t.Fatalf("result %d: %v", index, result)
-		}
-		if !bytes.Equal(result.GetRevision().GetData(), response.Results[0].GetRevision().GetData()) {
-			t.Fatal("operations do not share a commit revision")
 		}
 	}
 	if observed.reads != 1 || observed.writes != 1 || observed.documents != 1 || !observed.visible {

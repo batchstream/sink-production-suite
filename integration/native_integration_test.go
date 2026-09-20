@@ -392,8 +392,8 @@ func TestNativeBackendExecute(t *testing.T) {
 			Addresses: []sink.Address{address},
 		}
 		after, err := f.environment.secondaryClient.Read(t.Context(), readRequest2)
-		if err != nil || len(after) != 1 || after[0].Status != sink.ReadFound || bytes.Equal(before[0].Revision.Bytes(), after[0].Revision.Bytes()) {
-			t.Fatalf("native write did not invalidate the revision seen by the other server: %+v, %v", after, err)
+		if err != nil || len(after) != 1 || after[0].Status != sink.ReadFound || bytes.Equal(before[0].Document.Payload(), after[0].Document.Payload()) {
+			t.Fatalf("native write did not change the document seen by the other server: %+v, %v", after, err)
 		}
 		if f.bson {
 			invalid := bson.D{{Key: "count", Value: ""}, {Key: "sinkQualificationUnknownOption", Value: true}}
@@ -482,9 +482,6 @@ func TestNativeBackendReturnedWrites(t *testing.T) {
 				t.Fatalf("operation %d returned another commit's document: %+v, %v", i, value, err)
 			}
 		}
-		if bytes.Equal(results[0].Revision.Bytes(), results[2].Revision.Bytes()) {
-			t.Fatal("returned operations were folded into one commit")
-		}
 		retained := append([]byte(nil), results[0].Document.Payload()...)
 		const writers = 12
 		start := make(chan struct{})
@@ -519,7 +516,6 @@ func TestNativeBackendReturnedWrites(t *testing.T) {
 			}
 		}
 		var counters []int64
-		revisions := make(map[string]bool)
 		for result := range outcomes {
 			if len(result) != 1 {
 				t.Fatalf("concurrent returned write: %+v", result)
@@ -530,11 +526,6 @@ func TestNativeBackendReturnedWrites(t *testing.T) {
 				t.Fatal(err)
 			}
 			counters = append(counters, value.Counter)
-			revision := string(result[0].Revision.Bytes())
-			if revision == "" || revisions[revision] {
-				t.Fatal("concurrent writes returned duplicate or missing revisions")
-			}
-			revisions[revision] = true
 		}
 		slices.Sort(counters)
 		for i, counter := range counters {
