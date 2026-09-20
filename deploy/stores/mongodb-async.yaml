@@ -1,0 +1,18 @@
+name: mongodb-async
+storage:
+  driver: mongodb
+  mongodb:
+    metadata_field: __sink
+    max_concurrent_writes: 64 # Per process; shared by Engine and Worker configuration.
+    max_concurrent_groups: 16
+    uri: mongodb://mongodb-async:27017/?replicaSet=rs0
+kafka:
+  brokers:
+  - kafka-secondary:19092
+  enabled: true
+  partitions: 8
+  replication_factor: 1
+  topic:
+    name: sink-production-mongodb-mutations
+  dead_letter:
+    name: sink-production-mongodb-mutations.dlq

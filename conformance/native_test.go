@@ -214,7 +214,7 @@ func TestNativeScanCancellationReleasesCursorAndAdmission(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, capacity: 1}
+			opts := serverOptions{backend: proxy.backend}
 			server := startCandidate(t, opts)
 			for i := range 3 {
 				address := addressFor(t, index, fmt.Sprint(i))
@@ -300,7 +300,7 @@ func TestNativeScanDeadlinesReleaseResources(t *testing.T) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, capacity: 1, requestTimeout: 1}
+			opts := serverOptions{backend: proxy.backend}
 			server := startCandidate(t, opts)
 			address := addressFor(t, index, "deadline")
 			operation := put(t, address, `{"counter":1}`, sink.WriteCreate)
@@ -309,12 +309,12 @@ func TestNativeScanDeadlinesReleaseResources(t *testing.T) {
 			gate := proxy.hold(nativeEndpointPath(command), "sort", 1)
 			t.Cleanup(gate.open)
 			req := sink.ScanRequest{Command: command, BatchSize: 1}
-			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()
 			page, err := server.client.Scan(ctx, req)
 			gate.wait(t)
-			if status.Code(err) != codes.DeadlineExceeded || ctx.Err() != nil || len(page.Documents) != 0 || len(page.NextCursor) != 0 {
-				t.Fatalf("server deadline: page=%+v client=%v error=%v", page, ctx.Err(), err)
+			if status.Code(err) != codes.DeadlineExceeded || ctx.Err() == nil || len(page.Documents) != 0 || len(page.NextCursor) != 0 {
+				t.Fatalf("caller deadline: page=%+v client=%v error=%v", page, ctx.Err(), err)
 			}
 			assertNoSearchCursors(t, store, index)
 			count := sink.CountRequest{Command: command}
@@ -368,7 +368,7 @@ func TestReturnedWriteBudgetsBelongToOriginalRPC(t *testing.T) {
 	for _, store := range searchBackends(t) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "-1")
-			opts := serverOptions{backend: store, readBytes: 768, batchOps: 2, batchWait: 1000}
+			opts := serverOptions{backend: store, readBytes: 768 + 2*1280, batchOps: 2, batchWait: 1000}
 			server := startCandidate(t, opts)
 			address := addressFor(t, index, "budget")
 			first := put(t, address, fmt.Sprintf(`{"counter":1,"pad":%q}`, strings.Repeat("a", 400)), sink.WriteUpsert).WithReturnedDocument()
@@ -396,10 +396,10 @@ func TestNativeResponseLimitsFailWithoutTruncation(t *testing.T) {
 	for _, store := range searchBackends(t) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "100ms")
-			opts := serverOptions{backend: store, readBytes: 1024}
+			opts := serverOptions{backend: store, readBytes: 2048}
 			server := startCandidate(t, opts)
 			address := addressFor(t, index, "large")
-			operation := put(t, address, fmt.Sprintf(`{"counter":1,"pad":%q}`, strings.Repeat("x", 2048)), sink.WriteCreate)
+			operation := put(t, address, fmt.Sprintf(`{"counter":1,"pad":%q}`, strings.Repeat("x", 4096)), sink.WriteCreate)
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, operation), 1)
 			command := nativeSearch(index)
 			query := sink.QueryRequest{Command: command, PageSize: 1}

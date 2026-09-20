@@ -36,6 +36,6 @@ SINK_SERVER_DIR=/path/to/sink bash scripts/server-go.sh test ./internal/service 
 
 See the [fixed-resource runner](../benchmarks/qualification/README.md) for
 repeatable load profiles and [Lua comparisons](../benchmarks/lua/README.md) for
-the standalone runtime comparison module. `make benchmark-memory` runs the
+the standalone runtime comparison module. The archived memory-admission experiment describes the former
 opt-in allocator experiment. CI executes smoke workloads for correctness;
 benchmark timings do not determine pass/fail.

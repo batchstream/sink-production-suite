@@ -12,13 +12,13 @@ import (
 	sink "github.com/liran/sink-go"
 )
 
-func TestSynchronousMergesStreamLargeWorkingSets(t *testing.T) {
+func TestSynchronousMergesProcessCollectedWorkingSets(t *testing.T) {
 	for _, store := range searchBackends(t) {
 		for _, scenario := range []string{"snapshots", "outputs"} {
 			t.Run(store.driver+"/"+scenario, func(t *testing.T) {
 				index := indexFor(t, store, "-1")
 				proxy := proxyBackend(t, store)
-				opts := serverOptions{backend: proxy.backend, readBytes: 1024, batchOps: 8, batchWait: 1000}
+				opts := serverOptions{backend: proxy.backend, batchOps: 8, batchWait: 1000}
 				server := startCandidate(t, opts)
 				padding := strings.Repeat("x", 700)
 				initialPadding := ""
@@ -46,7 +46,7 @@ func TestSynchronousMergesStreamLargeWorkingSets(t *testing.T) {
 						Padding string `json:"padding"`
 					}
 					if err := results[0].Document.Decode(&value); err != nil || value.Counter != 1 || value.Padding != padding {
-						t.Fatalf("streaming lost a caller's committed document: %+v, %v", value, err)
+						t.Fatalf("batching lost a caller's committed document: %+v, %v", value, err)
 					}
 				}
 				proxy.mu.Lock()
@@ -63,11 +63,11 @@ func TestSynchronousMergesStreamLargeWorkingSets(t *testing.T) {
 					}
 				}
 				proxy.mu.Unlock()
-				if writes < 3 || (scenario == "snapshots" && reads < 2) {
-					t.Fatalf("large working set did not stream through backend requests: reads=%d writes=%d", reads, writes)
+				if writes != 2 || reads != 1 {
+					t.Fatalf("collected batch was split into extra backend requests: reads=%d writes=%d", reads, writes)
 				}
 				// Require one seed batch and one coalesced eight-caller merge batch.
-				// Eight independent executions would not exercise the shared budget.
+				// Eight independent executions would not exercise coalescing.
 				deadline := time.Now().Add(2 * time.Second)
 				for {
 					call := httpCall{endpoint: server.metrics, method: http.MethodGet}
@@ -80,12 +80,11 @@ func TestSynchronousMergesStreamLargeWorkingSets(t *testing.T) {
 						break
 					}
 					if time.Now().After(deadline) {
-						t.Fatal("streaming oracle requires all eight merge callers in one batch")
+						t.Fatal("batching oracle requires all eight merge callers in one batch")
 					}
 					time.Sleep(10 * time.Millisecond)
 				}
-				// Read one record per RPC: combining them would deliberately exceed
-				// the caller's 1 KiB response budget, which streaming must retain.
+				// Verify every independent caller persisted its result exactly once.
 				for _, address := range addresses {
 					assertCounter(t, server.client, address, 1)
 				}

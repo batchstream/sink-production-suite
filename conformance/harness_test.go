@@ -63,28 +63,24 @@ type serverOptions struct {
 	worker          bool
 	broker          string
 	topic           string
-	capacity        int
 	queued          int
 	maxOps          int
 	secondary       *backend
-	requestTimeout  int
 	luaInstructions int
 	endpoints       []string
-	executionBytes  int
 	memoryBytes     int
-	admissionQueue  *admissionQueueOptions
-	scanWait        time.Duration
 }
 
 type candidate struct {
-	logPath string
-	client  *sink.Client
-	address string
-	metrics string
-	health  string
-	command *exec.Cmd
-	done    <-chan error
-	stopped bool
+	logPath       string
+	client        *sink.Client
+	address       string
+	engineAddress string
+	metrics       string
+	health        string
+	command       *exec.Cmd
+	done          <-chan error
+	stopped       bool
 }
 
 func startCandidate(t *testing.T, opts serverOptions) *candidate {
@@ -115,26 +111,7 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	if opts.worker {
 		mode = "worker"
 	}
-	endpoints := opts.endpoints
-	if len(endpoints) == 0 {
-		endpoints = []string{opts.backend.endpoint}
-	}
-	encodedEndpoints, err := json.Marshal(endpoints)
-	if err != nil {
-		t.Fatal(err)
-	}
-	readLimit := readableByteSize(defaultInt(opts.readBytes, 32<<20))
-	config := fmt.Sprintf(groupedCandidateConfig, mode, grpcAddress, metricsAddress, opts.backend.driver, encodedEndpoints,
-		candidateKafkaConfig(opts), "", defaultInt(opts.requestTimeout, 20), readLimit, defaultInt(opts.maxOps, 1000),
-		defaultInt(opts.capacity*2, 128), defaultInt(opts.capacity, 32), defaultInt(opts.luaInstructions, 1000000),
-		defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
-	config = strings.Replace(config, "  execution:\n", "  execution:\n"+candidateExecutionConfig(opts), 1)
-	config = isolatedConfig(config, opts, grpcAddress, metricsAddress)
-	if opts.memoryBytes > 0 {
-		config += fmt.Sprintf("memory: {max_bytes: %s, burst_percent: 10, wait_timeout: 2s}\n", readableByteSize(opts.memoryBytes))
-	}
-	config += fmt.Sprintf("health: {address: %q}\n", healthAddress)
-	config += opts.logging
+	config, shared := candidateConfigs(opts, addresses)
 	configPath := filepath.Join(dir, "server.yaml")
 	if err := os.WriteFile(filepath.Join(dir, "test-name.txt"), []byte(t.Name()), 0600); err != nil {
 		t.Fatal(err)
@@ -147,7 +124,15 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 	if err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command(binary, "--config", configPath)
+	arguments := []string{"--config", configPath}
+	if shared != "" {
+		storePath := filepath.Join(dir, "store.yaml")
+		if err := os.WriteFile(storePath, []byte(shared), 0600); err != nil {
+			t.Fatal(err)
+		}
+		arguments = append(arguments, "--store-config", storePath)
+	}
+	command := exec.Command(binary, arguments...)
 	command.Stdout, command.Stderr = log, log
 	if err := command.Start(); err != nil {
 		log.Close()
@@ -221,6 +206,18 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 		}
 		server.waitCapability(t, "sink.kafka."+store)
 	}
+	if mode == "engine" {
+		store := opts.store
+		if store == "" {
+			store = "primary"
+		}
+		gatewayOptions := serverOptions{role: "gateway", readBytes: opts.readBytes, maxOps: opts.maxOps,
+			routes: fmt.Sprintf("  routes: [{store: %s, target: %q, tls: {insecure: true}}]", store, grpcAddress)}
+		gateway := startCandidate(t, gatewayOptions)
+		server.client = gateway.client
+		server.engineAddress = server.address
+		server.address = gateway.address
+	}
 	return server
 }
 
@@ -261,13 +258,6 @@ func (c *candidate) waitCapability(t *testing.T, service string) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("candidate dependencies did not become ready: %s", last)
-}
-
-func candidateKafkaConfig(opts serverOptions) string {
-	if opts.broker == "" {
-		return ""
-	}
-	return fmt.Sprintf(groupedCandidateKafka, opts.broker, opts.topic, opts.topic, opts.topic)
 }
 
 func (c *candidate) crash(t *testing.T) {

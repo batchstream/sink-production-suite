@@ -3,23 +3,15 @@
 package conformance_test
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/liran/sink-production-suite/internal/testuri"
-
-	sink "github.com/liran/sink-go"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
-func TestSlowStoreSaturationIsBounded(t *testing.T) {
+func TestSlowStoreDoesNotBlockIndependentWork(t *testing.T) {
 	rounds := 6
 	if raw := os.Getenv("SINK_SATURATION_ROUNDS"); raw != "" {
 		value, err := strconv.Atoi(raw)
@@ -28,120 +20,7 @@ func TestSlowStoreSaturationIsBounded(t *testing.T) {
 		}
 		rounds = value
 	}
-	if usesMemoryAdmission(t) {
-		testMemoryStoreSaturation(t, rounds)
-		return
-	}
-	for _, store := range searchBackends(t) {
-		t.Run(store.driver, func(t *testing.T) {
-			index := indexFor(t, store, "-1")
-			proxy := proxyBackend(t, store)
-			other := independentBackend(t, store)
-			otherIndex := indexFor(t, other, "-1")
-			opts := serverOptions{backend: proxy.backend, secondary: &other, capacity: 2, maxOps: 8, batchOps: 1, queued: 8}
-			server := startCandidate(t, opts)
-			healthy, err := sink.NewRecordAddress(testuri.Resource("secondary", []string{otherIndex}), sink.StringKey("healthy"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			baseline := server.metricSnapshot(t)
-			for round := range rounds {
-				ctx, cancel := context.WithCancel(t.Context())
-				t.Cleanup(cancel)
-				outcomes := make(chan writeOutcome, 66)
-				var gates []*requestGate
-				var addresses []sink.Address
-				payload := `{"value":"` + strings.Repeat("x", 32<<10) + `"}`
-				for i := range 66 {
-					key := fmt.Sprintf("slow-%d-%d", round, i)
-					address := addressFor(t, index, key)
-					addresses = append(addresses, address)
-					var gate *requestGate
-					if i < 2 {
-						gate = proxy.hold("/_bulk", key, 1)
-						gates = append(gates, gate)
-						t.Cleanup(gate.open)
-					}
-					operation := put(t, address, payload, sink.WriteUpsert)
-					go func() {
-						results, err := server.client.Write(ctx, sink.CompletionWaitUntilApplied, operation)
-						outcome := writeOutcome{results: results, err: err}
-						outcomes <- outcome
-					}()
-					if gate != nil {
-						gate.wait(t)
-					}
-				}
-				// Two executions are held and eight callers fit the queue. Every
-				// excess request must return overload promptly, before cancellation.
-				deadline := time.NewTimer(5 * time.Second)
-				for range 56 {
-					select {
-					case result := <-outcomes:
-						if status.Code(result.err) != codes.ResourceExhausted && !(result.err == nil && len(result.results) == 1 && result.results[0].Failure != nil && result.results[0].Failure.Code == sink.FailureResourceExhausted) {
-							t.Fatalf("saturated queue did not reject excess work: %+v", result)
-						}
-					case <-deadline.C:
-						t.Fatal("excess callers did not receive bounded overload responses")
-					}
-				}
-				deadline.Stop()
-				metrics := server.metricSnapshot(t)
-				if metricForStore(metrics, `sink_batcher_queued_operations{method="Write"}`, "primary") != 8 || metrics["sink_in_flight_requests"] != 2 {
-					t.Fatalf("saturation schedule not established: %+v", metrics)
-				}
-				// Exercise useful work repeatedly while the other store remains
-				// saturated. Every RPC has its own deadline; readiness alone is not
-				// evidence that the healthy store continues serving traffic.
-				for sample := range 8 {
-					started := time.Now()
-					call, stop := context.WithTimeout(t.Context(), time.Second)
-					operation := put(t, healthy, fmt.Sprintf(`{"counter":%d}`, round*8+sample), sink.WriteUpsert)
-					results, err := server.client.Write(call, sink.CompletionWaitUntilApplied, operation)
-					stop()
-					if err != nil || len(results) != 1 || results[0].Status != sink.WriteApplied {
-						t.Fatalf("healthy store stalled behind saturated store: %+v, %v", results, err)
-					}
-					t.Logf("round=%d healthy_write_latency=%s", round, time.Since(started))
-					time.Sleep(100 * time.Millisecond)
-				}
-				cancel()
-				for range 10 {
-					select {
-					case result := <-outcomes:
-						if status.Code(result.err) != codes.Canceled {
-							t.Fatalf("cancelled admitted/queued request: %+v", result)
-						}
-					case <-time.After(5 * time.Second):
-						t.Fatal("cancelled work did not release callers")
-					}
-				}
-				server.waitIdle(t)
-				for _, gate := range gates {
-					gate.open()
-				}
-				for i := 0; i < len(addresses); i += 8 {
-					call, stop := context.WithTimeout(t.Context(), 5*time.Second)
-					results, err := server.client.Read(call, addresses[i:min(i+8, len(addresses))]...)
-					stop()
-					if err != nil || len(results) != min(8, len(addresses)-i) {
-						t.Fatalf("read cancelled work: %+v, %v", results, err)
-					}
-					for _, result := range results {
-						if result.Status != sink.ReadNotFound {
-							t.Fatalf("rejected/cancelled pre-commit request changed storage: %+v", result)
-						}
-					}
-				}
-				metrics = server.waitIdle(t)
-				if metrics["go_goroutines"] > baseline["go_goroutines"]+80 ||
-					metrics["go_memstats_heap_alloc_bytes"] > baseline["go_memstats_heap_alloc_bytes"]+64<<20 {
-					t.Fatalf("resource growth after saturation: baseline=%+v current=%+v", baseline, metrics)
-				}
-				t.Logf("round=%d quiescent_resource_snapshot=%v", round, metrics)
-			}
-		})
-	}
+	testMemoryStoreSaturation(t, rounds)
 }
 
 func (c *candidate) metricSnapshot(t *testing.T) map[string]float64 {
@@ -155,7 +34,7 @@ func (c *candidate) metricSnapshot(t *testing.T) map[string]float64 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"sink_in_flight_requests", "sink_in_flight_bytes", "go_goroutines", "go_memstats_heap_alloc_bytes"} {
+	for _, name := range []string{"sink_in_flight_requests", "go_goroutines", "go_memstats_heap_alloc_bytes"} {
 		if _, ok := metrics[name]; !ok {
 			t.Fatalf("required resource metric is missing: %s", name)
 		}
@@ -163,9 +42,7 @@ func (c *candidate) metricSnapshot(t *testing.T) map[string]float64 {
 	selected := make(map[string]float64)
 	for name, value := range metrics {
 		if name == "go_goroutines" || name == "go_memstats_heap_alloc_bytes" ||
-			strings.HasPrefix(name, "sink_memory_") || strings.HasPrefix(name, "sink_in_flight_") || strings.HasPrefix(name, "sink_batcher_queued_") ||
-			strings.HasPrefix(name, "sink_execution_queued_") || strings.HasPrefix(name, "sink_scan_queued_") ||
-			strings.HasPrefix(name, "sink_admission_pool_requests{") || strings.HasPrefix(name, "sink_admission_pool_bytes{") {
+			strings.HasPrefix(name, "sink_memory_") || strings.HasPrefix(name, "sink_in_flight_requests") || strings.HasPrefix(name, "sink_batcher_queued_") {
 			selected[name] = value
 		}
 	}
@@ -180,7 +57,7 @@ func (c *candidate) waitIdle(t *testing.T) map[string]float64 {
 		metrics = c.metricSnapshot(t)
 		idle := true
 		for name, value := range metrics {
-			if strings.HasPrefix(name, "sink_memory_") && !memoryOccupancyMetric(name) {
+			if strings.HasPrefix(name, "sink_memory_") {
 				continue
 			}
 			if strings.HasPrefix(name, "sink_") && value != 0 {

@@ -33,22 +33,24 @@ grpc:
 prometheus:
   enabled: true
   address: "127.0.0.1:0"
+shutdown_timeout: 1s
+`, mode)
+			if mode == "worker" {
+				input = strings.Replace(input, "grpc:\n  address: \"127.0.0.1:0\"\n", "consumer: {group_id: workers}\n", 1)
+			}
+			shared := fmt.Sprintf(`name: primary
 storage:
-  name: primary
   driver: opensearch
   search:
     endpoints: [%q]
-  kafka:
-    enabled: true
-    brokers: [%q]
-    topic:
-      name: mutations
-      replication_factor: 1
-    consumer:
-      group_id: workers
-shutdown_timeout: 1s
-`, mode, backend.URL, broker.ListenAddrs()[0])
-			loaded, err := config.Decode(strings.NewReader(input))
+kafka:
+  enabled: true
+  brokers: [%q]
+  replication_factor: 1
+  topic:
+    name: mutations
+`, backend.URL, broker.ListenAddrs()[0])
+			loaded, err := config.Decode(strings.NewReader(input), strings.NewReader(shared))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -118,13 +120,9 @@ grpc:
 prometheus:
   enabled: true
   address: %q
-storage:
-  name: primary
-  driver: opensearch
-  search:
-    endpoints: [http://127.0.0.1:1]
 `, occupied.Addr().String(), address)
-	loaded, err := config.Decode(strings.NewReader(input))
+	shared := "name: primary\nstorage: {driver: opensearch, search: {endpoints: ['http://127.0.0.1:1']}}"
+	loaded, err := config.Decode(strings.NewReader(input), strings.NewReader(shared))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,19 +153,15 @@ func TestApplicationCloseReleasesSearchConnections(t *testing.T) {
 	}
 	backend.Start()
 	t.Cleanup(backend.Close)
-	input := fmt.Sprintf(`mode: engine
+	input := `mode: engine
 health:
   address: "127.0.0.1:0"
 grpc:
   address: "127.0.0.1:0"
-storage:
-  name: primary
-  driver: opensearch
-  search:
-    endpoints: [%q]
 shutdown_timeout: 1s
-`, backend.URL)
-	loaded, err := config.Decode(strings.NewReader(input))
+`
+	shared := fmt.Sprintf("name: primary\nstorage: {driver: opensearch, search: {endpoints: [%q]}}", backend.URL)
+	loaded, err := config.Decode(strings.NewReader(input), strings.NewReader(shared))
 	if err != nil {
 		t.Fatal(err)
 	}

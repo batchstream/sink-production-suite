@@ -16,16 +16,9 @@ import (
 func TestUnavailableStoreDoesNotBlockStartup(t *testing.T) {
 	unavailable := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
 	defer unavailable.Close()
-	contents := fmt.Sprintf(`mode: engine
-grpc:
-  address: "127.0.0.1:0"
-storage:
-  name: failed
-  driver: opensearch
-  search:
-    endpoints: [%q]
-`, unavailable.URL)
-	loaded, err := config.Decode(strings.NewReader(contents))
+	contents := "mode: engine\ngrpc: {address: '127.0.0.1:0'}\nhealth: {address: '127.0.0.1:0'}\n"
+	shared := fmt.Sprintf("name: failed\nstorage: {driver: opensearch, search: {endpoints: [%q]}}", unavailable.URL)
+	loaded, err := config.Decode(strings.NewReader(contents), strings.NewReader(shared))
 	if err != nil {
 		t.Fatal(err)
 	}

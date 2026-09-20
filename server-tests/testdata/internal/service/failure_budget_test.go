@@ -34,7 +34,7 @@ func TestLargeLuaFailuresPreserveRPCResults(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				opts := service.Options{BoundStore: "primary", Storage: memory.New(), Lua: lua, MaxReadBytes: 8 << 10, MaxInFlightBytes: 64 << 10}
+				opts := service.Options{BoundStore: "primary", Storage: memory.New(), Lua: lua, MaxReadBytes: 8 << 10}
 				core, err := service.New(opts)
 				if err != nil {
 					t.Fatal(err)

@@ -61,7 +61,7 @@ func TestSyncCrashBoundaries(t *testing.T) {
 					} else {
 						gate.open()
 					}
-					assertUnknownWrite(t, done)
+					assertUnknownWrite(t, done, false)
 				}
 				restarted := startCandidate(t, opts)
 				if phase == "before-commit" {
@@ -96,7 +96,11 @@ func TestLostBackendResponseDoesNotReplayMutation(t *testing.T) {
 				assertBackendCounter(t, store, index, true)
 				assertPending(t, done)
 				gate.open()
-				assertUnknownWrite(t, done)
+				// Engine returns a classified dependency failure after the backend
+				// drops its reply. Gateway preserves that classification; only a
+				// lost Engine reply is synthesized with retryable=false. Neither
+				// path may replay this non-idempotent mutation internally.
+				assertUnknownWrite(t, done, true)
 				assertCounter(t, server.client, address, 1)
 				if writes := proxy.count("/_bulk", "crash"); writes != 1 {
 					t.Fatalf("ambiguous non-idempotent mutation replayed internally: %d writes", writes)
@@ -124,7 +128,7 @@ func TestCancellationAfterCommitRetainsState(t *testing.T) {
 			gate.wait(t)
 			assertBackendCounter(t, store, index, true)
 			cancel()
-			assertUnknownWrite(t, done)
+			assertUnknownWrite(t, done, false)
 			gate.open()
 			assertCounter(t, server.client, address, 1)
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, merge(t, address, increment)), 1)
@@ -142,7 +146,7 @@ func assertPending(t *testing.T, done <-chan writeOutcome) {
 	}
 }
 
-func assertUnknownWrite(t *testing.T, done <-chan writeOutcome) {
+func assertUnknownWrite(t *testing.T, done <-chan writeOutcome, retryable bool) {
 	t.Helper()
 	select {
 	case result := <-done:
@@ -155,8 +159,8 @@ func assertUnknownWrite(t *testing.T, done <-chan writeOutcome) {
 			}
 		}
 		if len(result.results) != 1 || result.results[0].Status != sink.WriteFailed || result.results[0].Failure == nil ||
-			!result.results[0].Failure.Retryable || len(result.results[0].Revision.Bytes()) != 0 {
-			t.Fatalf("ambiguous commit incorrectly acknowledged or permanently rejected: %+v", result)
+			result.results[0].Failure.Retryable != retryable || result.results[0].Failure.Code != sink.FailureUnavailable || len(result.results[0].Revision.Bytes()) != 0 {
+			t.Fatalf("ambiguous commit was acknowledged or misclassified (want retryable=%t): %+v", retryable, result)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("caller did not resolve after injected failure")

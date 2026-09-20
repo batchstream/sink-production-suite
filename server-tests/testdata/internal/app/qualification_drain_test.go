@@ -40,14 +40,14 @@ func TestShutdownWithdrawsReadinessAndDrainsAcceptedRPC(t *testing.T) {
 			input := `mode: gateway
 grpc: {address: "127.0.0.1:0"}
 health: {address: "127.0.0.1:0"}
-gateway:
+forwarding:
   routes:
     - store: primary
       target: 127.0.0.1:1
       tls: {insecure: true}
 shutdown_timeout: 300ms
 `
-			loaded, err := config.Decode(strings.NewReader(input))
+			loaded, err := config.Decode(strings.NewReader(input), nil)
 			if err != nil {
 				t.Fatal(err)
 			}

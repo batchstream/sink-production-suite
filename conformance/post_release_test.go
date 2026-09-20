@@ -210,7 +210,8 @@ func TestQueryLookaheadDoesNotConsumeDocumentBudget(t *testing.T) {
 			server := startCandidate(t, opts)
 			first := put(t, addressFor(t, index, "first"), `{"counter":0}`, sink.WriteCreate)
 			second := put(t, addressFor(t, index, "second"), `{"counter":1,"padding":"`+strings.Repeat("x", 4096)+`"}`, sink.WriteCreate)
-			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, first, second), 2)
+			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, first), 1)
+			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilVisible, second), 1)
 			req := sink.QueryRequest{Command: nativeSearch(index), PageSize: 1}
 			result, err := server.client.Query(t.Context(), req)
 			if err != nil || len(result.Documents) != 1 || !result.HasMore || !bytes.Contains(result.Documents[0].Payload(), []byte(`"_id":"first"`)) {

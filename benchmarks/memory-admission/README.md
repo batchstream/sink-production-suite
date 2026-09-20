@@ -1,5 +1,11 @@
 # Memory completion reserve experiment
 
+Historical allocator experiment: the current server uses process watermarks and
+no longer implements these allocation/reserve APIs. Results below describe the
+previous allocator, not recommended watermark percentages. The original source is
+preserved in `legacy_experiment_test.go.txt`; run it against the matching historical
+server/suite revisions recorded below, not the current candidate.
+
 Run the opt-in local allocator experiment:
 
 ```sh

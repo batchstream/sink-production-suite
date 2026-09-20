@@ -66,7 +66,7 @@ jobs:
           retention-days: 14
   public-conformance:
     name: Public API conformance (OpenSearch ${{ matrix.version }})
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -242,8 +242,6 @@ jobs:
         run: |
           go -C suite/benchmarks/lua test -race ./... -count=1
           make -C suite benchmark-lua BENCHTIME=1x
-      - name: Exercise allocator experiment
-        run: make -C suite benchmark-memory
       - name: Build performance workload tool
         run: make -C suite build-perf
       - name: Preserve server qualification evidence

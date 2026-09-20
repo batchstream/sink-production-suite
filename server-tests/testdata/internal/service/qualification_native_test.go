@@ -26,12 +26,7 @@ func nativeRPCFixture(t *testing.T, silent bool) (sink.SinkClient, *nativeFixtur
 	if err != nil {
 		t.Fatal(err)
 	}
-	idle := time.Second
-	if silent {
-		idle = 200 * time.Millisecond
-	}
-	options := service.Options{BoundStore: "primary", Storage: backend, Lua: lua, MaxInFlightRequests: 1, MaxReadBytes: 4096,
-		RequestTimeout: idle, AdmissionWait: 10 * time.Millisecond}
+	options := service.Options{BoundStore: "primary", Storage: backend, Lua: lua, MaxReadBytes: 4096}
 	core, err := service.New(options)
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +56,7 @@ func nativeSearchRequest() *sink.ExecuteRequest {
 	return request
 }
 
-func TestNativeRPCSharesAdmissionAndReleasesCanceledScan(t *testing.T) {
+func TestNativeRPCProgressesAlongsideCanceledScan(t *testing.T) {
 	client, backend := nativeRPCFixture(t, true)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -75,8 +70,8 @@ func TestNativeRPCSharesAdmissionAndReleasesCanceledScan(t *testing.T) {
 		t.Fatal("scan did not start")
 	}
 	_, err := client.Execute(t.Context(), request)
-	if status.Code(err) != codes.ResourceExhausted {
-		t.Fatalf("scan bypassed shared admission: %v", err)
+	if err != nil {
+		t.Fatalf("independent native request failed: %v", err)
 	}
 	cancel()
 	if err := <-finished; status.Code(err) != codes.Canceled {
@@ -87,24 +82,18 @@ func TestNativeRPCSharesAdmissionAndReleasesCanceledScan(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("canceled scan retained backend resources")
 	}
-	var response *sink.ExecuteResponse
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		response, err = client.Execute(t.Context(), request)
-		if status.Code(err) != codes.ResourceExhausted {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
+	response, err := client.Execute(t.Context(), request)
 	if err != nil || response.GetStatusCode() != 400 || response.GetSuccess() || len(response.GetHeaders()[0].GetValues()) != 2 {
 		t.Fatalf("native result=%v err=%v", response, err)
 	}
 }
 
-func TestNativeScanUsesOrdinaryRequestTimeout(t *testing.T) {
+func TestNativeScanUsesCallerDeadline(t *testing.T) {
 	client, backend := nativeRPCFixture(t, true)
 	request := &sink.ScanRequest{Command: nativeSearchRequest().Command}
-	_, err := client.Scan(t.Context(), request)
+	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
+	defer cancel()
+	_, err := client.Scan(ctx, request)
 	if status.Code(err) != codes.DeadlineExceeded {
 		t.Fatalf("scan error=%v", err)
 	}

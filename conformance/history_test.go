@@ -3,10 +3,12 @@
 package conformance_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -47,6 +49,7 @@ func TestConcurrentHistories(t *testing.T) {
 		for _, profile := range profiles {
 			t.Run(store.driver+"/"+profile.name, func(t *testing.T) {
 				index := indexFor(t, store, "-1")
+				prepareHistoryMapping(t, store, index)
 				opts := serverOptions{backend: store, batchOps: profile.batchOps, batchWait: 10}
 				first, second := startCandidate(t, opts), startCandidate(t, opts)
 				clients := []*sink.Client{first.client, second.client, first.client}
@@ -115,6 +118,34 @@ func TestConcurrentHistories(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func prepareHistoryMapping(t *testing.T, store backend, index string) {
+	t.Helper()
+	// Keep cluster-state publication outside the five-second operation deadline.
+	// The history checks concurrent document mutations, not dynamic field mapping.
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	mapping := []byte(`{"dynamic":"strict","properties":{"counter":{"type":"long"}}}`)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, store.endpoint+"/"+index+"/_mapping", bytes.NewReader(mapping))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("prepare concurrent history mapping: %v", err)
+	}
+	defer response.Body.Close()
+	var result struct {
+		Acknowledged bool `json:"acknowledged"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		t.Fatalf("decode concurrent history mapping response (HTTP %d): %v", response.StatusCode, err)
+	}
+	if response.StatusCode != http.StatusOK || !result.Acknowledged {
+		t.Fatalf("concurrent history mapping was not acknowledged: HTTP %d, %+v", response.StatusCode, result)
 	}
 }
 

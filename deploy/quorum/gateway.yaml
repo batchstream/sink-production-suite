@@ -1,0 +1,6 @@
+mode: gateway
+grpc: {address: ":8080"}
+health: {address: ":8081"}
+forwarding:
+  routes: [{store: mongo, target: engine:8080, tls: {insecure: true}}]
+shutdown_timeout: 10s

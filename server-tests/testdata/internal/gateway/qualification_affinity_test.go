@@ -109,8 +109,8 @@ func replicaView(t *testing.T, gateway *Server, engines []fixtureEngine) *discov
 
 func TestRecordAffinityAcrossGatewaysAndRPCBoundaries(t *testing.T) {
 	engines := []fixtureEngine{testEngine(t, "a", 16384), testEngine(t, "a", 16384), testEngine(t, "a", 16384)}
-	first := testGateway(t, 16384, engines[0])
-	second := testGateway(t, 16384, engines[0])
+	first := testGateway(t, 16384+60*1280, engines[0])
+	second := testGateway(t, 16384+60*1280, engines[0])
 	replicaView(t, first, engines)
 	reversed := slices.Clone(engines)
 	slices.Reverse(reversed)
@@ -191,7 +191,7 @@ func TestRecordAffinityAcrossGatewaysAndRPCBoundaries(t *testing.T) {
 
 func TestReplicaReturnBudgetRemainsScopedToOriginalRPC(t *testing.T) {
 	engines := []fixtureEngine{testEngine(t, "a", 200), testEngine(t, "a", 200)}
-	gateway := testGateway(t, 200, engines[0])
+	gateway := testGateway(t, 200+2*1280, engines[0])
 	replicaView(t, gateway, engines)
 	routes, release, err := gateway.pool.destinations(t.Context(), gateway.current.routes["a"])
 	if err != nil {

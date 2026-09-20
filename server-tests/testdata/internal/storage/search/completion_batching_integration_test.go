@@ -35,7 +35,7 @@ func TestSearchBatchingIsolatesIndependentVisibleDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := service.Options{BoundStore: "primary", Storage: slow.store, Lua: engine, RequestTimeout: 10 * time.Second}
+	options := service.Options{BoundStore: "primary", Storage: slow.store, Lua: engine}
 	core, err := service.New(options)
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func TestSearchBatchingKeepsArchiveAppliedWithoutRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	opts := service.Options{BoundStore: "primary", Storage: product.store, Lua: engine, RequestTimeout: 10 * time.Second}
+	opts := service.Options{BoundStore: "primary", Storage: product.store, Lua: engine}
 	core, err := service.New(opts)
 	if err != nil {
 		t.Fatal(err)

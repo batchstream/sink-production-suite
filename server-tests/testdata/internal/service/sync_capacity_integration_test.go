@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -24,7 +23,6 @@ import (
 	"github.com/liran/sink/internal/testuri"
 
 	sink "github.com/liran/sink/gen/sink"
-	"github.com/liran/sink/internal/capacity"
 	"github.com/liran/sink/internal/merge"
 	"github.com/liran/sink/internal/protocol"
 	"github.com/liran/sink/internal/storage"
@@ -183,13 +181,6 @@ func newSyncCapacityClient(b *testing.B, fixture syncCapacityFixture) sink.SinkC
 		b.Fatal(err)
 	}
 	serverOptions := Options{BoundStore: "primary", Storage: fixture.backend, Lua: engine}
-	if value := os.Getenv("SINK_SYNC_BENCH_EXECUTION_MIB"); value != "" {
-		mib, parseErr := strconv.Atoi(value)
-		if parseErr != nil || mib <= 0 || mib > 65536 {
-			b.Fatal("SINK_SYNC_BENCH_EXECUTION_MIB must be between 1 and 65536")
-		}
-		serverOptions.MaxInFlightBytes = mib << 20
-	}
 	core, err := New(serverOptions)
 	if err != nil {
 		b.Fatal(err)
@@ -306,7 +297,7 @@ func syncCapacityIndexRequest(b testing.TB, method, endpoint string, payload []b
 	}
 }
 
-func TestSynchronousStorageStreamsLargeRecords(t *testing.T) {
+func TestSynchronousStorageProcessesCollectedRecords(t *testing.T) {
 	for _, driver := range []string{"mongodb", "opensearch"} {
 		for _, scenario := range []string{"snapshots", "outputs"} {
 			t.Run(driver+"/"+scenario, func(t *testing.T) {
@@ -314,12 +305,6 @@ func TestSynchronousStorageStreamsLargeRecords(t *testing.T) {
 				backend := &syncCapacityStorage{Storage: fixture.backend}
 				server := completionServer(t, backend)
 				server.server.maxReadBytes = 1024
-				memoryOptions := capacity.Options{Bytes: 128 << 20, BurstPercent: 10, WaitTimeout: time.Second}
-				pool, err := capacity.New(memoryOptions)
-				if err != nil {
-					t.Fatal(err)
-				}
-				server.server.memory = pool
 				var seed storage.WriteRequest
 				var read storage.ReadRequest
 				var calls []*batchCall[*sink.WriteRequest, *sink.WriteResponse]
@@ -349,12 +334,7 @@ func TestSynchronousStorageStreamsLargeRecords(t *testing.T) {
 					seed.Operations = append(seed.Operations, writeOperation)
 					readOperation := storage.ReadOperation{Address: address}
 					read.Operations = append(read.Operations, readOperation)
-					scope := pool.NewScope()
-					ctx := capacity.WithScope(t.Context(), scope)
-					if err := scope.Admit(ctx, 4096); err != nil {
-						t.Fatal(err)
-					}
-					call := completionWriteCall(ctx, sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, operation)
+					call := completionWriteCall(t.Context(), sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, operation)
 					calls = append(calls, call)
 				}
 				seeded, err := fixture.backend.Write(t.Context(), seed)
@@ -370,23 +350,14 @@ func TestSynchronousStorageStreamsLargeRecords(t *testing.T) {
 				for _, call := range calls {
 					result := awaitCompletion(t, call.result)
 					if result.err != nil || len(result.response.GetResults()) != 1 || result.response.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
-						t.Fatalf("chunk failed: %v, %v", result.response, result.err)
+						t.Fatalf("batch failed: %v, %v", result.response, result.err)
 					}
 					if len(result.response.Results[0].GetDocument().GetPayload()) < 700 {
-						t.Fatal("chunk lost returned document")
+						t.Fatal("batch lost returned document")
 					}
 				}
-				if pool.Used() == 0 {
-					t.Fatal("returned documents were released before callers finished")
-				}
-				for _, call := range calls {
-					capacity.FromContext(call.ctx).Release()
-				}
-				if pool.Used() != 0 {
-					t.Fatalf("write memory leaked: %d", pool.Used())
-				}
-				if backend.writes.Load() < 2 || (scenario == "snapshots" && backend.reads.Load() < 2) {
-					t.Fatalf("records did not stream: reads=%d writes=%d", backend.reads.Load(), backend.writes.Load())
+				if backend.writes.Load() != 1 || backend.reads.Load() != 1 {
+					t.Fatalf("collected records were split: reads=%d writes=%d", backend.reads.Load(), backend.writes.Load())
 				}
 				stored, err := fixture.backend.Read(t.Context(), read)
 				if err != nil {
@@ -400,7 +371,7 @@ func TestSynchronousStorageStreamsLargeRecords(t *testing.T) {
 						err = json.Unmarshal(result.Document.Payload, &value)
 					}
 					if err != nil || fmt.Sprint(value["value"]) != "1" || value["padding"] != strings.Repeat("x", 700) {
-						t.Fatalf("chunk did not persist exactly once: %v, %v", result, err)
+						t.Fatalf("batch did not persist exactly once: %v, %v", result, err)
 					}
 				}
 			})

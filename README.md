@@ -194,8 +194,8 @@ SINK_SERVER_DIR=/path/to/sink make test-reliability
 ```
 
 This target allows 30 minutes for its expanded conformance prerequisite;
-ordinary conformance allows 20 minutes. `SINK_CONFORMANCE_TEST_TIMEOUT` can
-override that aggregate test timeout without changing request deadlines or
+ordinary conformance allows 30 minutes for the Gateway and Engine lifecycles.
+`SINK_CONFORMANCE_TEST_TIMEOUT` can override that aggregate test timeout without changing request deadlines or
 the two-hour workload duration.
 
 The nightly workflow lives in this repository. Sink can invoke it using the
@@ -272,8 +272,9 @@ MIT
 
 The harness and `deploy/engines/`, `deploy/workers/`, and `deploy/gateway.yaml`
 use the Gateway / single-Store Engine / single-Store Worker architecture. Runtime
-fixtures reject retired multi-Store modes and use grouped settings, duration
-strings, and readable byte sizes. Pair this suite revision with the Store-isolated
+fixtures use flat role settings and shared `deploy/stores/` files passed through
+`--store-config`. All public clients connect through Gateway; Engine exposes only
+private forwarding and health. Deadlines belong to callers. Pair this suite revision with the Store-isolated
 Sink candidate; see Sink's
 [configuration migration guide](https://github.com/liran/sink/blob/main/docs/configuration-migration.md).
 

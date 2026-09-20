@@ -41,13 +41,19 @@ func TestHealthEndpointsDoNotRequirePrometheus(t *testing.T) {
 		{name: "occupied metrics", yaml: fmt.Sprintf("prometheus: {enabled: true, address: %q}\n", occupied.Addr().String()), failure: "listen for Prometheus metrics"},
 	}
 	for _, mode := range []string{"gateway", "engine", "worker"} {
-		base := fmt.Sprintf("mode: %s\ngrpc: {address: '127.0.0.1:0'}\nshutdown_timeout: 1s\n", mode)
+		base := fmt.Sprintf("mode: %s\nshutdown_timeout: 1s\n", mode)
+		var shared io.Reader
+		if mode != "worker" {
+			base += "grpc: {address: '127.0.0.1:0'}\n"
+		}
+		sharedText := ""
 		if mode == "gateway" {
-			base += "gateway:\n  routes:\n    - store: primary\n      target: 127.0.0.1:1\n      tls: {insecure: true}\n"
+			base += "forwarding:\n  routes:\n    - store: primary\n      target: 127.0.0.1:1\n      tls: {insecure: true}\n"
 		} else {
-			base += "storage:\n  name: primary\n  driver: opensearch\n  search: {endpoints: ['http://127.0.0.1:1']}\n"
+			sharedText = "name: primary\nstorage: {driver: opensearch, search: {endpoints: ['http://127.0.0.1:1']}}\n"
 			if mode == "worker" {
-				base += fmt.Sprintf("  kafka:\n    enabled: true\n    brokers: [%q]\n    topic: {name: mutations, replication_factor: 1}\n    consumer: {group_id: workers}\n", broker.ListenAddrs()[0])
+				base += "consumer: {group_id: workers}\n"
+				sharedText += fmt.Sprintf("kafka:\n  enabled: true\n  brokers: [%q]\n  replication_factor: 1\n  topic: {name: mutations}\n", broker.ListenAddrs()[0])
 			}
 		}
 		for _, test := range tests {
@@ -57,7 +63,10 @@ func TestHealthEndpointsDoNotRequirePrometheus(t *testing.T) {
 					address = "127.0.0.1:0"
 				}
 				settings := base + test.yaml + fmt.Sprintf("health: {address: %q}\n", address)
-				loaded, err := config.Decode(strings.NewReader(settings))
+				if sharedText != "" {
+					shared = strings.NewReader(sharedText)
+				}
+				loaded, err := config.Decode(strings.NewReader(settings), shared)
 				if err != nil {
 					t.Fatal(err)
 				}

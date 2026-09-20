@@ -406,10 +406,10 @@ dlq_partition="${dlq_summary##*:}"
 export SINK_DLQ_INSPECT_REPORT="${artifacts}/dlq-inspect.jsonl"
 export SINK_DLQ_REPLAY_REPORT="${artifacts}/dlq-replay.jsonl"
 "${compose[@]}" exec -T worker-primary /usr/local/bin/sink dlq inspect \
-	--config /etc/sink/config.yaml --store primary --partition "${dlq_partition}" --offset 0 --count 1 > "${SINK_DLQ_INSPECT_REPORT}"
+	--config /etc/sink/config.yaml --store-config /etc/sink/store.yaml --store primary --partition "${dlq_partition}" --offset 0 --count 1 > "${SINK_DLQ_INSPECT_REPORT}"
 SINK_DLQ_PHASE=repair run_checked_tests dlq-repair TestReliabilityDeadLetterRecovery -run '^TestReliabilityDeadLetterRecovery$' -timeout=3m
 "${compose[@]}" exec -T worker-primary /usr/local/bin/sink dlq replay \
-	--config /etc/sink/config.yaml --store primary --partition "${dlq_partition}" --offset 0 --count 1 > "${SINK_DLQ_REPLAY_REPORT}"
+	--config /etc/sink/config.yaml --store-config /etc/sink/store.yaml --store primary --partition "${dlq_partition}" --offset 0 --count 1 > "${SINK_DLQ_REPLAY_REPORT}"
 SINK_DLQ_PHASE=verify run_checked_tests dlq-verify TestReliabilityDeadLetterRecovery -run '^TestReliabilityDeadLetterRecovery$' -timeout=3m
 wait_for_zero_group_lag kafka sink-production-workers
 "${compose[@]}" exec -T kafka /opt/kafka/bin/kafka-get-offsets.sh \
