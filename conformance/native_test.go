@@ -140,13 +140,19 @@ func TestNativeRejectsIncompleteBackendResults(t *testing.T) {
 						ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 						defer cancel()
 						var err error
+						// Streaming can deliver a document before late metadata fails.
+						// Such a page must still end in an error without continuation.
+						expectedDocuments := 1
+						if mode == "missing-hits" || mode == "malformed" {
+							expectedDocuments = 0
+						}
 						switch method {
 						case "Query":
 							req := sink.QueryRequest{Command: command, PageSize: 1}
 							var result sink.QueryResponse
 							result, err = server.client.Query(ctx, req)
-							if len(result.Documents) != 0 || result.HasMore {
-								t.Fatal("failed Query exposed an apparently valid page")
+							if len(result.Documents) != expectedDocuments || result.HasMore {
+								t.Fatalf("failed Query lost delivered results or advertised continuation: documents=%d has_more=%t", len(result.Documents), result.HasMore)
 							}
 						case "Count":
 							req := sink.CountRequest{Command: command}
@@ -159,8 +165,8 @@ func TestNativeRejectsIncompleteBackendResults(t *testing.T) {
 							req := sink.ScanRequest{Command: command, BatchSize: 1}
 							var result sink.ScanResponse
 							result, err = server.client.Scan(ctx, req)
-							if len(result.Documents) != 0 || len(result.NextCursor) != 0 {
-								t.Fatal("failed Scan exposed a partial page")
+							if len(result.Documents) != expectedDocuments || len(result.NextCursor) != 0 {
+								t.Fatalf("failed Scan lost delivered results or advertised continuation: documents=%d cursor=%q", len(result.Documents), result.NextCursor)
 							}
 
 						}
@@ -364,27 +370,46 @@ func TestReturnedWriteCommitAndConflictBoundaries(t *testing.T) {
 	}
 }
 
-func TestReturnedWriteBudgetsBelongToOriginalRPC(t *testing.T) {
+func TestReturnedWriteStreamsUsePerResultLimits(t *testing.T) {
 	for _, store := range searchBackends(t) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "-1")
-			opts := serverOptions{backend: store, readBytes: 768 + 2*1280, batchOps: 2, batchWait: 1000}
+			opts := serverOptions{backend: store, readBytes: 1024, batchOps: 2, batchWait: 1000}
 			server := startCandidate(t, opts)
 			address := addressFor(t, index, "budget")
-			first := put(t, address, fmt.Sprintf(`{"counter":1,"pad":%q}`, strings.Repeat("a", 400)), sink.WriteUpsert).WithReturnedDocument()
-			second := put(t, address, fmt.Sprintf(`{"counter":2,"pad":%q}`, strings.Repeat("b", 400)), sink.WriteUpsert).WithReturnedDocument()
-			results, err := server.client.Write(t.Context(), sink.CompletionWaitUntilApplied, first, second)
-			if err != nil || len(results) != 2 || results[0].Status != sink.WriteApplied || results[1].Status != sink.WriteFailed ||
-				results[1].Failure == nil || results[1].Failure.Code != sink.FailureResourceExhausted || len(results[1].Document.Payload()) != 0 {
-				t.Fatalf("returned response budget did not reject before the second commit: %+v, %v", results, err)
+			first := put(t, address, fmt.Sprintf(`{"counter":1,"pad":%q}`, strings.Repeat("a", 600)), sink.WriteUpsert).WithReturnedDocument()
+			second := put(t, address, fmt.Sprintf(`{"counter":2,"pad":%q}`, strings.Repeat("b", 600)), sink.WriteUpsert).WithReturnedDocument()
+			writeRequest := sink.WriteRequest{
+				CompletionMode: sink.CompletionWaitUntilApplied,
+				Operations:     []sink.WriteOperation{first, second},
 			}
-			assertCounter(t, server.client, address, 1)
+			results, err := server.client.Write(t.Context(), writeRequest)
+			if err != nil || len(results) != 2 {
+				t.Fatalf("returned writes did not complete: results=%d err=%v", len(results), err)
+			}
+			for i, result := range results {
+				var document struct {
+					Counter int `json:"counter"`
+				}
+				if err := result.Document.Decode(&document); err != nil || result.Status != sink.WriteApplied || document.Counter != i+1 {
+					t.Fatalf("stream lost its operation's committed document: counter=%d err=%v", document.Counter, err)
+				}
+			}
+			assertCounter(t, server.client, address, 2)
+			oversized := put(t, address, fmt.Sprintf(`{"counter":3,"pad":%q}`, strings.Repeat("c", 2048)), sink.WriteUpsert).WithReturnedDocument()
+			writeRequest.Operations = []sink.WriteOperation{oversized}
+			results, err = server.client.Write(t.Context(), writeRequest)
+			if err != nil || len(results) != 1 || results[0].Status != sink.WriteFailed || results[0].Failure == nil ||
+				results[0].Failure.Code != sink.FailureResourceExhausted || len(results[0].Document.Payload()) != 0 {
+				t.Fatalf("oversized returned document was not rejected: %+v, %v", results, err)
+			}
+			assertCounter(t, server.client, address, 2)
 			one := writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, first)
 			server.waitQueued(t, "Write")
 			two := writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, second)
 			for _, result := range [][]sink.WriteResult{applied(t, one, 1), applied(t, two, 1)} {
-				if len(result[0].Document.Payload()) < 400 {
-					t.Fatal("valid original RPC lost its returned-document budget")
+				if len(result[0].Document.Payload()) < 600 {
+					t.Fatal("valid RPC lost its returned document")
 				}
 			}
 			assertCounter(t, server.client, address, 2)
@@ -446,25 +471,25 @@ func TestNativeWireValidationBeforeExecution(t *testing.T) {
 			command := &sinkv1.Command{Uri: "sink://primary", Method: "POST", Path: "/" + index + "/_search", ContentType: "application/json", Payload: []byte(`{}`)}
 			// Use raw RPCs to bypass SDK validation and qualify the server boundary.
 			tooLarge := &sinkv1.QueryRequest{Command: command, PageSize: 1001}
-			_, err = client.Query(t.Context(), tooLarge)
+			err = rawStreamError(client.Query(t.Context(), tooLarge))
 			if status.Code(err) != codes.InvalidArgument {
 				t.Fatalf("server accepted oversized page: %v", err)
 			}
 			field := &sinkv1.SortField{Field: "counter"}
 			duplicate := &sinkv1.QueryRequest{Command: command, Sort: []*sinkv1.SortField{field, field}}
-			_, err = client.Query(t.Context(), duplicate)
+			err = rawStreamError(client.Query(t.Context(), duplicate))
 			if status.Code(err) != codes.InvalidArgument {
 				t.Fatalf("server accepted duplicate sort: %v", err)
 			}
 			scan := &sinkv1.ScanRequest{Command: command, BatchSize: 1001}
-			_, err = client.Scan(t.Context(), scan)
+			err = rawStreamError(client.Scan(t.Context(), scan))
 			if status.Code(err) != codes.InvalidArgument {
 				t.Fatalf("server accepted oversized scan batch: %v", err)
 			}
 			for _, parameter := range []string{"scroll=2m", "filter_path=hits", "source=%7B%7D", "pit=x"} {
 				command.Query = parameter
 				query := &sinkv1.QueryRequest{Command: command}
-				_, err := client.Query(t.Context(), query)
+				err := rawStreamError(client.Query(t.Context(), query))
 				if status.Code(err) != codes.InvalidArgument {
 					t.Fatalf("server accepted managed pagination parameter %s: %v", parameter, err)
 				}
@@ -477,7 +502,7 @@ func TestNativeWireValidationBeforeExecution(t *testing.T) {
 			action := &sinkv1.WriteOperation_Put{Put: put}
 			operation := &sinkv1.WriteOperation{Address: address, Action: action, ReturnDocument: true}
 			write := &sinkv1.WriteRequest{CompletionMode: sinkv1.CompletionMode_COMPLETION_MODE_RETURN_AFTER_ACCEPTED, Operations: []*sinkv1.WriteOperation{operation}}
-			_, err = client.Write(t.Context(), write)
+			err = rawStreamError(client.Write(t.Context(), write))
 			if status.Code(err) != codes.InvalidArgument {
 				t.Fatalf("server accepted asynchronous returned write: %v", err)
 			}
@@ -504,4 +529,19 @@ func nativeEndpointPath(command sink.Command) string {
 		panic(err)
 	}
 	return address.EscapedPath() + command.Path
+}
+
+func rawStreamError[T any](stream grpc.ServerStreamingClient[T], err error) error {
+	if err != nil {
+		return err
+	}
+	for {
+		_, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
 }

@@ -32,14 +32,22 @@ func TestPublishingSurvivesSynchronousSaturation(t *testing.T) {
 				for _, address := range []sink.Address{kept, removed} {
 					ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 					operation := put(t, address, `{"counter":7}`, sink.WriteUpsert)
-					results, err := server.client.Write(ctx, sink.CompletionReturnAfterAccepted, operation)
+					writeRequest := sink.WriteRequest{
+						CompletionMode: sink.CompletionReturnAfterAccepted,
+						Operations:     []sink.WriteOperation{operation},
+					}
+					results, err := server.client.Write(ctx, writeRequest)
 					cancel()
 					if err != nil || len(results) != 1 || results[0].Status != sink.WriteAccepted || results[0].Failure != nil {
 						t.Fatalf("synchronous saturation blocked Kafka publishing: %+v, %v", results, err)
 					}
 				}
 				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-				deleted, err := server.client.Delete(ctx, sink.CompletionReturnAfterAccepted, removed)
+				deleteRequest := sink.DeleteRequest{
+					CompletionMode: sink.CompletionReturnAfterAccepted,
+					Addresses:      []sink.Address{removed},
+				}
+				deleted, err := server.client.Delete(ctx, deleteRequest)
 				cancel()
 				if err != nil || len(deleted) != 1 || deleted[0].Status != sink.DeleteAccepted || deleted[0].Failure != nil {
 					t.Fatalf("synchronous saturation blocked Kafka delete: %+v, %v", deleted, err)

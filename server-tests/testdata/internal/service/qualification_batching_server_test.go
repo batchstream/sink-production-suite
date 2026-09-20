@@ -31,7 +31,7 @@ func TestBatchingServerAggregatesAcrossGRPCRPCs(t *testing.T) {
 	vtCodec := protocol.NewVTProtoCodec()
 	codecOption := grpc.ForceServerCodecV2(vtCodec)
 	grpcServer := grpc.NewServer(codecOption)
-	sink.RegisterSinkServer(grpcServer, server)
+	sink.RegisterSinkServer(grpcServer, server.RPC())
 	serveErrors := make(chan error, 1)
 	go func() {
 		serveErrors <- grpcServer.Serve(listener)
@@ -70,7 +70,7 @@ func TestBatchingServerAggregatesAcrossGRPCRPCs(t *testing.T) {
 		go func() {
 			defer waitGroup.Done()
 			<-start
-			response, readErr := client.Read(t.Context(), readRequest(batchTestKey(index)))
+			response, readErr := collectRead(t.Context(), client, readRequest(batchTestKey(index)))
 			if readErr == nil && response.GetResults()[0].GetStatus() != sink.ReadStatus_READ_STATUS_FOUND {
 				readErr = errUnexpectedStatus(response.GetResults()[0].GetStatus())
 			}

@@ -33,7 +33,10 @@ func TestKafkaBacklogSurvivesWorkerRestart(t *testing.T) {
 	case "publish":
 		environment.ensureIndex(t, index)
 		publishRecoveryBacklog(t, ctx, environment.client, address, key)
-		results, err := environment.client.Read(ctx, address)
+		readRequest := sink.ReadRequest{
+			Addresses: []sink.Address{address},
+		}
+		results, err := environment.client.Read(ctx, readRequest)
 		if err != nil {
 			t.Fatalf("Read(before worker restart) error = %v", err)
 		}
@@ -71,7 +74,11 @@ func publishRecoveryBacklog(t *testing.T, ctx context.Context, client *sink.Clie
 		operation := newMergeOperation(t, address, incoming, programs.ProductMerge)
 		operations = append(operations, operation)
 	}
-	results, err := client.Write(ctx, sink.CompletionReturnAfterAccepted, operations...)
+	writeRequest := sink.WriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Operations:     operations,
+	}
+	results, err := client.Write(ctx, writeRequest)
 	if err != nil {
 		t.Fatalf("Write(recovery backlog) error = %v", err)
 	}
@@ -83,7 +90,10 @@ func waitForRecoveryProduct(t *testing.T, ctx context.Context, client *sink.Clie
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		results, err := client.Read(ctx, address)
+		readRequest := sink.ReadRequest{
+			Addresses: []sink.Address{address},
+		}
+		results, err := client.Read(ctx, readRequest)
 		if err == nil && len(results) == 1 && results[0].Status == sink.ReadFound {
 			product := &reference.Product{}
 			decodeErr := results[0].Document.Decode(product)

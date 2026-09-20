@@ -39,7 +39,7 @@ func nativeRPCFixture(t *testing.T, silent bool) (sink.SinkClient, *nativeFixtur
 	listener := bufconn.Listen(1 << 20)
 	codec := protocol.NewVTProtoCodec()
 	grpcServer := grpc.NewServer(grpc.ForceServerCodecV2(codec))
-	sink.RegisterSinkServer(grpcServer, server)
+	sink.RegisterSinkServer(grpcServer, server.RPC())
 	go func() { _ = grpcServer.Serve(listener) }()
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) { return listener.DialContext(ctx) }
 	connection, err := grpc.NewClient("passthrough:///native", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(dialer))
@@ -63,7 +63,7 @@ func TestNativeRPCProgressesAlongsideCanceledScan(t *testing.T) {
 	request := nativeSearchRequest()
 	scan := &sink.ScanRequest{Command: request.Command, BatchSize: 1}
 	finished := make(chan error, 1)
-	go func() { _, err := client.Scan(ctx, scan); finished <- err }()
+	go func() { _, err := collectScan(ctx, client, scan); finished <- err }()
 	select {
 	case <-backend.started:
 	case <-time.After(time.Second):
@@ -93,7 +93,7 @@ func TestNativeScanUsesCallerDeadline(t *testing.T) {
 	request := &sink.ScanRequest{Command: nativeSearchRequest().Command}
 	ctx, cancel := context.WithTimeout(t.Context(), 200*time.Millisecond)
 	defer cancel()
-	_, err := client.Scan(ctx, request)
+	_, err := collectScan(ctx, client, request)
 	if status.Code(err) != codes.DeadlineExceeded {
 		t.Fatalf("scan error=%v", err)
 	}
@@ -108,13 +108,13 @@ func TestNativeScanReturnsOneUnaryPageAndReleasesAdmission(t *testing.T) {
 	client, _ := nativeRPCFixture(t, false)
 	request := &sink.ScanRequest{Command: nativeSearchRequest().Command}
 	for range 3 {
-		page, err := client.Scan(t.Context(), request)
+		page, err := collectScan(t.Context(), client, request)
 		if err != nil || len(page.GetDocuments()) != 1 || len(page.GetNextCursor()) != 0 {
 			t.Fatalf("page=%v err=%v", page, err)
 		}
 	}
 	request.Cursor = []byte("invalid")
-	_, err := client.Scan(t.Context(), request)
+	_, err := collectScan(t.Context(), client, request)
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("invalid cursor=%v", err)
 	}

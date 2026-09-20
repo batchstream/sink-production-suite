@@ -96,7 +96,10 @@ func TestProcessLoggingSurvivesCollectorOutage(t *testing.T) {
 				applied(t, writeAsync(ctx, gateway.client, sink.CompletionWaitUntilApplied, operation), 1)
 				cancel()
 			}
-			found, err := gateway.client.Read(t.Context(), addresses...)
+			readRequest := sink.ReadRequest{
+				Addresses: addresses,
+			}
+			found, err := gateway.client.Read(t.Context(), readRequest)
 			if err != nil || len(found) != len(addresses) {
 				t.Fatalf("business traffic failed during Collector outage: %v", err)
 			}
@@ -147,7 +150,7 @@ func TestProcessLoggingSurvivesCollectorOutage(t *testing.T) {
 				if attrs["event"] == "process_stopped" {
 					stopped[attrs["role"]] = true
 				}
-				if attrs["role"] == "engine" && attrs["method"] == "ForwardStream" {
+				if attrs["role"] == "engine" && attrs["method"] == "Forward" {
 					forwarded = true
 				}
 				if attrs["role"] == "gateway" && attrs["event"] == "rpc_completed" && attrs["method"] == "Write" && attrs["failed"] == "1" && attrs["level"] == "warn" {

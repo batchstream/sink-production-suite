@@ -340,7 +340,11 @@ func writeSoakWithReconciliation(ctx context.Context, opts soakWriteReconciliati
 	sawTransient := false
 	for {
 		attemptContext, cancel := context.WithTimeout(ctx, soakMutationAttemptTimeout)
-		results, err := opts.client.Write(attemptContext, opts.completion, opts.operation)
+		writeRequest := sink.WriteRequest{
+			CompletionMode: opts.completion,
+			Operations:     []sink.WriteOperation{opts.operation},
+		}
+		results, err := opts.client.Write(attemptContext, writeRequest)
 		cancel()
 		if err == nil {
 			resultErr := validateSoakWriteResult(results, opts.wantStatus)
@@ -389,7 +393,11 @@ func deleteSoakWithReconciliation(ctx context.Context, opts soakDeleteReconcilia
 	sawTransient := false
 	for {
 		attemptContext, cancel := context.WithTimeout(ctx, soakMutationAttemptTimeout)
-		results, err := opts.client.Delete(attemptContext, opts.completion, opts.address)
+		deleteRequest := sink.DeleteRequest{
+			CompletionMode: opts.completion,
+			Addresses:      []sink.Address{opts.address},
+		}
+		results, err := opts.client.Delete(attemptContext, deleteRequest)
 		cancel()
 		if err == nil {
 			resultErr := validateSoakDeleteResult(results, opts.wantStatus)
@@ -553,7 +561,10 @@ func waitForSoakDocumentState(
 
 func readSoakDocument(ctx context.Context, client *sink.Client, address sink.Address) (soakObservedDocument, error) {
 	observed := soakObservedDocument{}
-	results, err := client.Read(ctx, address)
+	readRequest := sink.ReadRequest{
+		Addresses: []sink.Address{address},
+	}
+	results, err := client.Read(ctx, readRequest)
 	if err != nil {
 		return observed, err
 	}

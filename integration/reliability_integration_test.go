@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -26,7 +27,11 @@ func TestReliabilityRejectsOversizedAsyncMutation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, operation)
+	writeRequest := sink.WriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Operations:     []sink.WriteOperation{operation},
+	}
+	results, err := environment.client.Write(ctx, writeRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +48,11 @@ func TestReliabilityRejectsOversizedAsyncMutation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err = environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, validOperation)
+	writeRequest2 := sink.WriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Operations:     []sink.WriteOperation{validOperation},
+	}
+	results, err = environment.client.Write(ctx, writeRequest2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,25 +60,32 @@ func TestReliabilityRejectsOversizedAsyncMutation(t *testing.T) {
 	waitForDocumentFound(t, ctx, environment.client, address)
 }
 
-func TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores(t *testing.T) {
+func TestReliabilityReadStreamsRepeatedKeysAcrossStores(t *testing.T) {
 	environment := newTestEnvironment(t)
-	// Observe the first server response before the SDK retries failed entries.
+	// Both consumption modes must complete without SDK retrying failed entries.
 	retry := sink.RetryPolicy{MaxAttempts: 1}
 	clientOptions := sink.ClientOptions{ReadRetry: retry}
 	dialOptions := sink.DialOptions{Client: clientOptions, TransportCredentials: insecure.NewCredentials()}
-	firstAttempt, err := sink.Dial(environmentValue("SINK_ADDRESS", defaultSinkAddress), dialOptions)
+	client, err := sink.Dial(environmentValue("SINK_ADDRESS", defaultSinkAddress), dialOptions)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer firstAttempt.Close()
-	index := environment.createIndex(t, "read-budget")
+	defer client.Close()
+	index := environment.createIndex(t, "read-stream")
 	ctx, cancel := context.WithTimeout(t.Context(), productionTestTimeout)
 	defer cancel()
 	primary := sinkAddress(t, index, "large-record")
 	secondary := sinkAddressForStore(t, "secondary", index, "large-record")
-	value := map[string]any{"value": strings.Repeat("x", 768<<10)}
-	writePut(t, ctx, environment.client, primary, value)
-	writePut(t, ctx, environment.client, secondary, value)
+	values := map[string]string{
+		"primary":   strings.Repeat("x", 768<<10),
+		"secondary": strings.Repeat("y", 768<<10),
+	}
+	for _, address := range []sink.Address{primary, secondary} {
+		value := map[string]any{"value": values[address.Store()]}
+		writePut(t, ctx, environment.client, address, value)
+	}
+	// 48 MiB in total exceeds the Gateway's 32 MiB message limit. Each
+	// result fits in its own frame; duplicate keys must all be delivered.
 	addresses := make([]sink.Address, 64)
 	for i := range addresses {
 		addresses[i] = primary
@@ -77,43 +93,60 @@ func TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores(t *testing.T) {
 			addresses[i] = secondary
 		}
 	}
-	results, err := firstAttempt.Read(ctx, addresses...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(results) != len(addresses) {
-		t.Fatalf("read result count = %d, want %d", len(results), len(addresses))
-	}
-	found, exhausted := 0, 0
-	for i, result := range results {
-		if result.OperationIndex != i {
-			t.Fatalf("result[%d] has operation index %d", i, result.OperationIndex)
-		}
-		switch result.Status {
-		case sink.ReadFound:
-			found++
-		case sink.ReadFailed:
-			if result.Failure == nil || result.Failure.Code != sink.FailureResourceExhausted || !result.Failure.Retryable {
-				t.Fatalf("read failure = %+v, want retryable resource exhaustion", result.Failure)
+	for _, mode := range []string{"collect", "callback"} {
+		t.Run(mode, func(t *testing.T) {
+			seen := make([]bool, len(addresses))
+			check := func(result sink.ReadResult) error {
+				i := result.OperationIndex
+				if i < 0 || i >= len(addresses) || seen[i] {
+					return fmt.Errorf("invalid or repeated operation index %d", i)
+				}
+				if result.Status != sink.ReadFound || result.Failure != nil {
+					return fmt.Errorf("result[%d]: status=%v failure=%v", i, result.Status, result.Failure)
+				}
+				var document struct {
+					Value string `json:"value"`
+				}
+				if err := result.Document.Decode(&document); err != nil {
+					return fmt.Errorf("decode result[%d]: %w", i, err)
+				}
+				if document.Value != values[addresses[i].Store()] {
+					return fmt.Errorf("result[%d] lost its document or belongs to another store", i)
+				}
+				seen[i] = true
+				return nil
 			}
-			exhausted++
-		default:
-			t.Fatalf("unexpected read result = %+v", result)
-		}
-	}
-	if found == 0 || exhausted == 0 {
-		t.Fatalf("read budget: found=%d exhausted=%d; expected bounded partial progress", found, exhausted)
-	}
-	t.Logf("first response: %d found, %d retryable budget rejections", found, exhausted)
-	// The normal SDK retries only unresolved entries, eventually reading all.
-	results, err = environment.client.Read(ctx, addresses...)
-	if err != nil || len(results) != len(addresses) {
-		t.Fatalf("read with SDK retries: %d results, error=%v", len(results), err)
-	}
-	for i, result := range results {
-		if result.Status != sink.ReadFound || result.OperationIndex != i {
-			t.Fatalf("read with SDK retries result[%d] = %+v", i, result)
-		}
+			request := sink.NewReadRequest(addresses...)
+			if mode == "callback" {
+				request = request.WithOnResult(check)
+			}
+			results, err := client.Read(ctx, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == "callback" {
+				if results != nil {
+					t.Fatal("callback mode collected a result slice")
+				}
+			} else {
+				if len(results) != len(addresses) {
+					t.Fatalf("read result count = %d, want %d", len(results), len(addresses))
+				}
+				for i, result := range results {
+					if result.OperationIndex != i {
+						t.Fatalf("result[%d] has operation index %d", i, result.OperationIndex)
+					}
+					if err := check(result); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			for i, delivered := range seen {
+				if !delivered {
+					t.Fatalf("result[%d] was not delivered", i)
+				}
+			}
+		})
 	}
 }
 
@@ -133,7 +166,11 @@ func TestReliabilityLuaAliasExpansionIsRejectedWithoutWriting(t *testing.T) {
 end`)
 	incoming := map[string]any{"value": strings.Repeat("x", 4096)}
 	operation := newMergeOperation(t, address, incoming, source)
-	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilApplied, operation)
+	writeRequest := sink.WriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Operations:     []sink.WriteOperation{operation},
+	}
+	results, err := environment.client.Write(ctx, writeRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,14 +216,22 @@ func TestReliabilityDeadLetterRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		results, err := environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, create, update)
+		writeRequest := sink.WriteRequest{
+			CompletionMode: sink.CompletionReturnAfterAccepted,
+			Operations:     []sink.WriteOperation{create, update},
+		}
+		results, err := environment.client.Write(ctx, writeRequest)
 		if err != nil {
 			t.Fatal(err)
 		}
 		assertWriteResults(t, results, sink.WriteAccepted)
 		desired.wantCounter = 2
 	case "repair":
-		results, err := environment.client.Delete(ctx, sink.CompletionWaitUntilVisible, address)
+		deleteRequest := sink.DeleteRequest{
+			CompletionMode: sink.CompletionWaitUntilVisible,
+			Addresses:      []sink.Address{address},
+		}
+		results, err := environment.client.Delete(ctx, deleteRequest)
 		if err != nil || len(results) != 1 || results[0].Status != sink.DeleteApplied {
 			t.Fatalf("repair conflict: results=%+v error=%v", results, err)
 		}

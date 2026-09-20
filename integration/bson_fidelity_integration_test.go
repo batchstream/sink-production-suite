@@ -70,7 +70,11 @@ end`))
 					if err != nil {
 						t.Fatal(err)
 					}
-					results, err := environment.client.Write(t.Context(), sink.CompletionWaitUntilApplied, seed)
+					writeRequest := sink.WriteRequest{
+						CompletionMode: sink.CompletionWaitUntilApplied,
+						Operations:     []sink.WriteOperation{seed},
+					}
+					results, err := environment.client.Write(t.Context(), writeRequest)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -83,7 +87,11 @@ end`))
 					if mode != sink.CompletionReturnAfterAccepted {
 						operation = operation.WithReturnedDocument()
 					}
-					results, err = environment.client.Write(t.Context(), mode, operation)
+					writeRequest2 := sink.WriteRequest{
+						CompletionMode: mode,
+						Operations:     []sink.WriteOperation{operation},
+					}
+					results, err = environment.client.Write(t.Context(), writeRequest2)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -96,7 +104,10 @@ end`))
 					ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 					defer cancel()
 					for {
-						read, err := environment.secondaryClient.Read(ctx, address)
+						readRequest := sink.ReadRequest{
+							Addresses: []sink.Address{address},
+						}
+						read, err := environment.secondaryClient.Read(ctx, readRequest)
 						if err != nil || len(read) != 1 || read[0].Status != sink.ReadFound {
 							t.Fatalf("persisted BSON read: %+v, %v", read, err)
 						}

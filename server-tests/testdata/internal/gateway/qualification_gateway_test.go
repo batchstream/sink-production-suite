@@ -54,12 +54,12 @@ func testEngine(t testing.TB, store string, maximum int) fixtureEngine {
 		t.Fatal(err)
 	}
 	t.Cleanup(batched.Close)
-	engineOpts := engine.Options{Service: batched, Store: store, MaxReadBytes: maximum}
+	engineOpts := engine.Options{Service: batched.RPC(), Store: store, MaxReadBytes: maximum}
 	backend, err := engine.New(engineOpts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	target := serveEngine(t, backend, batched)
+	target := serveEngine(t, backend, batched.RPC())
 	fixture := fixtureEngine{store: store, target: target, core: core}
 	return fixture
 }
@@ -129,7 +129,7 @@ func TestCrossStorePublicRecordsAndPartialFailure(t *testing.T) {
 	b := testEngine(t, "b", 4096)
 	gateway := testGateway(t, 8192, a, b)
 	write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", false), put("b", "two", false), put("missing", "three", false), put("a", "one", false)}}
-	response, err := gateway.Write(t.Context(), write)
+	response, err := collectWrite(t.Context(), gateway, write)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestCrossStorePublicRecordsAndPartialFailure(t *testing.T) {
 	readA := &sink.ReadOperation{Address: address("a", "one")}
 	readB := &sink.ReadOperation{Address: address("b", "two")}
 	read := &sink.ReadRequest{Operations: []*sink.ReadOperation{readB, readA, readB}}
-	found, err := gateway.Read(t.Context(), read)
+	found, err := collectRead(t.Context(), gateway, read)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,23 +171,23 @@ func TestCrossStorePublicRecordsAndPartialFailure(t *testing.T) {
 	}
 }
 
-func TestCrossStoreReturnBudgetCheckedBeforeCommit(t *testing.T) {
+func TestCrossStoreReturnBudgetAppliesPerResult(t *testing.T) {
 	a := testEngine(t, "a", 200)
 	b := testEngine(t, "b", 200)
 	gateway := testGateway(t, 200+2*1280, a, b)
 	write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", true), put("b", "two", true)}}
-	response, err := gateway.Write(t.Context(), write)
+	response, err := collectWrite(t.Context(), gateway, write)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED || response.Results[1].GetFailure().GetCode() != sink.FailureCode_FAILURE_CODE_RESOURCE_EXHAUSTED {
+	if response.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED || response.Results[1].Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
 		t.Fatal(response)
 	}
 	op := &sink.ReadOperation{Address: address("b", "two")}
 	req := &sink.ReadRequest{Operations: []*sink.ReadOperation{op}}
-	check, err := b.core.Read(t.Context(), req)
-	if err != nil || check.Results[0].Status != sink.ReadStatus_READ_STATUS_NOT_FOUND {
-		t.Fatalf("over-budget mutation committed: %v %v", check, err)
+	check, err := collectRead(t.Context(), b.core, req)
+	if err != nil || check.Results[0].Status != sink.ReadStatus_READ_STATUS_FOUND {
+		t.Fatalf("independently streamed mutation missing: %v %v", check, err)
 	}
 }
 
@@ -196,18 +196,18 @@ func TestCrossStoreReadBudgetAndRepeatedKeys(t *testing.T) {
 	b := testEngine(t, "b", 300)
 	gateway := testGateway(t, 300+3*1280, a, b)
 	write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", false), put("b", "two", false)}}
-	if _, err := gateway.Write(t.Context(), write); err != nil {
+	if _, err := collectWrite(t.Context(), gateway, write); err != nil {
 		t.Fatal(err)
 	}
 	one := &sink.ReadOperation{Address: address("a", "one")}
 	two := &sink.ReadOperation{Address: address("b", "two")}
 	request := &sink.ReadRequest{Operations: []*sink.ReadOperation{one, two, one}}
-	response, err := gateway.Read(t.Context(), request)
+	response, err := collectRead(t.Context(), gateway, request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// A's repeated copies consume 278 bytes; B cannot allocate another document.
-	if response.Results[0].Status != sink.ReadStatus_READ_STATUS_FOUND || response.Results[2].Status != sink.ReadStatus_READ_STATUS_FOUND || response.Results[1].GetFailure().GetCode() != sink.FailureCode_FAILURE_CODE_RESOURCE_EXHAUSTED {
+	// Repeated keys and other Stores each have an independent frame allowance.
+	if response.Results[0].Status != sink.ReadStatus_READ_STATUS_FOUND || response.Results[2].Status != sink.ReadStatus_READ_STATUS_FOUND || response.Results[1].Status != sink.ReadStatus_READ_STATUS_FOUND {
 		t.Fatal(response)
 	}
 }
@@ -218,12 +218,12 @@ func TestLuaDeclarationsValidatedBeforeAnyStoreWrites(t *testing.T) {
 	gateway := testGateway(t, 4096, a, b)
 	bad := &sink.LuaProgram{Source: []byte("return 1"), Sha256: make([]byte, 32)}
 	write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", false), put("b", "two", false)}, LuaPrograms: []*sink.LuaProgram{bad}}
-	if _, err := gateway.Write(t.Context(), write); status.Code(err) != codes.InvalidArgument {
+	if _, err := collectWrite(t.Context(), gateway, write); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("invalid declaration accepted: %v", err)
 	}
 	one := &sink.ReadOperation{Address: address("a", "one")}
 	read := &sink.ReadRequest{Operations: []*sink.ReadOperation{one}}
-	result, err := gateway.Read(t.Context(), read)
+	result, err := collectRead(t.Context(), gateway, read)
 	if err != nil || result.Results[0].Status != sink.ReadStatus_READ_STATUS_NOT_FOUND {
 		t.Fatalf("partial write before validation: %v %v", result, err)
 	}
@@ -236,7 +236,7 @@ func TestLuaDeclarationsValidatedBeforeAnyStoreWrites(t *testing.T) {
 		merged := &sink.MergeOperation{IncomingDocument: op.GetPut().GetDocument(), LuaProgram: reference}
 		op.Action = &sink.WriteOperation_Merge{Merge: merged}
 	}
-	response, err := gateway.Write(t.Context(), write)
+	response, err := collectWrite(t.Context(), gateway, write)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +252,7 @@ func TestMisroutedEngineCannotWrite(t *testing.T) {
 	wrong := fixtureEngine{store: "b", target: a.target}
 	gateway := testGateway(t, 4096, wrong)
 	req := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("b", "one", false)}}
-	response, err := gateway.Write(t.Context(), req)
+	response, err := collectWrite(t.Context(), gateway, req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,12 +261,12 @@ func TestMisroutedEngineCannotWrite(t *testing.T) {
 	}
 	// A core bound to one Store rejects a mixed batch before touching its storage.
 	mixed := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", false), put("b", "two", false)}}
-	if _, err := a.core.Write(t.Context(), mixed); status.Code(err) != codes.InvalidArgument {
+	if _, err := collectWrite(t.Context(), a.core, mixed); status.Code(err) != codes.InvalidArgument {
 		t.Fatal(err)
 	}
 	one := &sink.ReadOperation{Address: address("a", "one")}
 	read := &sink.ReadRequest{Operations: []*sink.ReadOperation{one}}
-	result, err := a.core.Read(t.Context(), read)
+	result, err := collectRead(t.Context(), a.core, read)
 	if err != nil || result.Results[0].Status != sink.ReadStatus_READ_STATUS_NOT_FOUND {
 		t.Fatalf("misrouted batch wrote a record: %v %v", result, err)
 	}
@@ -281,7 +281,8 @@ type controlledEngine struct {
 	lost    bool
 }
 
-func (e *controlledEngine) Forward(ctx context.Context, req *forward.ForwardRequest) (*forward.ForwardResponse, error) {
+func (e *controlledEngine) Forward(req *forward.ForwardRequest, stream grpc.ServerStreamingServer[forward.ForwardResponse]) error {
+	ctx := stream.Context()
 	e.calls.Add(1)
 	if e.entered != nil {
 		select {
@@ -293,21 +294,21 @@ func (e *controlledEngine) Forward(ctx context.Context, req *forward.ForwardRequ
 		select {
 		case <-e.release:
 		case <-ctx.Done():
-			return nil, status.FromContextError(ctx.Err()).Err()
+			return status.FromContextError(ctx.Err()).Err()
 		}
 	}
 	if e.lost {
-		return nil, status.Error(codes.Unavailable, "reply lost after mutation")
+		return status.Error(codes.Unavailable, "reply lost after mutation")
 	}
-	response := emptyResponse(req, len(req.GetWrite().GetOperations()))
-	response.Version = forwarding.Version
-	response.Store = e.store
-	response.Used = &forward.Budget{}
 	for i := range req.GetWrite().GetOperations() {
 		result := &sink.WriteResult{OperationIndex: uint32(i), Status: sink.WriteStatus_WRITE_STATUS_APPLIED}
-		response.GetWrite().Results[i] = result
+		written := &sink.WriteResponse{Results: []*sink.WriteResult{result}}
+		frame := &forward.ForwardResponse{Version: forwarding.Version, Store: e.store, Response: &forward.ForwardResponse_Write{Write: written}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
 	}
-	return response, nil
+	return nil
 }
 
 func TestLostMutationReplyIsNotReplayedAndKeepsOtherSuccess(t *testing.T) {
@@ -316,7 +317,7 @@ func TestLostMutationReplyIsNotReplayedAndKeepsOtherSuccess(t *testing.T) {
 	b := testEngine(t, "b", 4096)
 	gateway := testGateway(t, 4096, a, b)
 	request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", false), put("b", "two", false)}}
-	response, err := gateway.Write(t.Context(), request)
+	response, err := collectWrite(t.Context(), gateway, request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,12 +366,12 @@ func TestGatewayAdmissionAndConcurrentBudgets(t *testing.T) {
 	for i := range 24 {
 		work.Go(func() {
 			request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", fmt.Sprint(i), true), put("b", fmt.Sprint(i), true)}}
-			response, err := gateway.Write(t.Context(), request)
+			response, err := collectWrite(t.Context(), gateway, request)
 			if err != nil {
 				t.Error(err)
 				return
 			}
-			if response.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED || response.Results[1].GetFailure().GetCode() != sink.FailureCode_FAILURE_CODE_RESOURCE_EXHAUSTED {
+			if response.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED || response.Results[1].Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
 				t.Error(response)
 			}
 		})
@@ -428,7 +429,7 @@ func (n *nativeFixture) Execute(_ context.Context, request *sink.ExecuteRequest)
 	return response, nil
 }
 
-func (n *nativeFixture) Query(_ context.Context, request *sink.QueryRequest) (*sink.QueryResponse, error) {
+func (n *nativeFixture) queryResponse(_ context.Context, request *sink.QueryRequest) (*sink.QueryResponse, error) {
 	document := &sink.Document{Encoding: sink.DocumentEncoding_DOCUMENT_ENCODING_JSON, Payload: []byte(`{"ok":true}`)}
 	response := &sink.QueryResponse{Documents: []*sink.Document{document}, HasMore: request.GetPage() == 2}
 	return response, nil
@@ -444,7 +445,7 @@ func (n *nativeFixture) Count(ctx context.Context, request *sink.CountRequest) (
 	return response, nil
 }
 
-func (n *nativeFixture) Scan(_ context.Context, _ *sink.ScanRequest) (*sink.ScanResponse, error) {
+func (n *nativeFixture) scanResponse(_ context.Context, _ *sink.ScanRequest) (*sink.ScanResponse, error) {
 	detail := &errdetails.ErrorInfo{Reason: "admission-marker", Domain: "sink"}
 	annotated, err := status.New(codes.ResourceExhausted, "admission full").WithDetails(detail)
 	if err != nil {
@@ -469,7 +470,7 @@ func TestNativeForwardingPreservesDetailsAndCancellation(t *testing.T) {
 		t.Fatalf("Execute: %v %v", executed, err)
 	}
 	query := &sink.QueryRequest{Command: command, Page: 2}
-	queried, err := gateway.Query(t.Context(), query)
+	queried, err := collectQuery(t.Context(), gateway, query)
 	if err != nil || !queried.GetHasMore() || len(queried.GetDocuments()) != 1 {
 		t.Fatalf("Query: %v %v", queried, err)
 	}
@@ -479,7 +480,7 @@ func TestNativeForwardingPreservesDetailsAndCancellation(t *testing.T) {
 		t.Fatalf("Count: %v %v", counted, err)
 	}
 	scan := &sink.ScanRequest{Command: command}
-	_, err = gateway.Scan(t.Context(), scan)
+	_, err = collectScan(t.Context(), gateway, scan)
 	details := status.Convert(err).Details()
 	if status.Code(err) != codes.ResourceExhausted || len(details) != 1 || details[0].(*errdetails.ErrorInfo).Reason != "admission-marker" {
 		t.Fatalf("lost status detail: %v", err)
@@ -505,14 +506,14 @@ func TestSlowForwardingDoesNotBlockHealthyStore(t *testing.T) {
 	gateway := testGateway(t, 4096, a, b)
 	request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "held", false)}}
 	done := make(chan error, 1)
-	go func() { _, err := gateway.Write(t.Context(), request); done <- err }()
+	go func() { _, err := collectWrite(t.Context(), gateway, request); done <- err }()
 	select {
 	case <-held.entered:
 	case <-time.After(time.Second):
 		t.Fatal("slow Store did not start")
 	}
 	healthy := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("b", "healthy", false)}}
-	response, err := gateway.Write(t.Context(), healthy)
+	response, err := collectWrite(t.Context(), gateway, healthy)
 	close(held.release)
 	if firstErr := <-done; firstErr != nil {
 		t.Fatal(firstErr)
@@ -535,7 +536,7 @@ func TestFanoutIsBounded(t *testing.T) {
 	gateway := testGateway(t, 4096, fixtures...)
 	request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put("a", "one", false), put("b", "two", false), put("c", "three", false)}}
 	done := make(chan error, 1)
-	go func() { _, err := gateway.Write(t.Context(), request); done <- err }()
+	go func() { _, err := collectWrite(t.Context(), gateway, request); done <- err }()
 	for range 2 {
 		select {
 		case <-entered:
@@ -556,7 +557,7 @@ func TestFanoutIsBounded(t *testing.T) {
 
 func TestEngineRejectsStaleProtocolAndMismatchedStoreBeforeWrites(t *testing.T) {
 	a := testEngine(t, "a", 4096)
-	opts := engine.Options{Service: a.core, Store: "a", MaxReadBytes: 4096}
+	opts := engine.Options{Service: a.core.RPC(), Store: "a", MaxReadBytes: 4096}
 	backend, err := engine.New(opts)
 	if err != nil {
 		t.Fatal(err)
@@ -576,18 +577,51 @@ func TestEngineRejectsStaleProtocolAndMismatchedStoreBeforeWrites(t *testing.T) 
 		t.Run(test.name, func(t *testing.T) {
 			write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put(test.body, test.name, false)}}
 			body := &forward.ForwardRequest_Write{Write: write}
-			grant := &forward.Budget{Returns: 4096}
-			request := &forward.ForwardRequest{Version: test.version, Store: test.store, Grant: grant, Request: body}
-			response, err := backend.Forward(t.Context(), request)
-			if err != nil || response.GetCode() != uint32(test.code) || !response.GetNotStarted() {
+			request := &forward.ForwardRequest{Version: test.version, Store: test.store, Request: body}
+			output := &collectorStream[forward.ForwardResponse]{ctx: t.Context()}
+			var response *forward.ForwardResponse
+			output.emit = func(frame *forward.ForwardResponse) error { response = frame; return nil }
+			err := backend.Forward(request, output)
+			marker := output.trailer.Get(forwarding.NotStartedTrailer)
+			if status.Code(err) != test.code || response != nil || len(marker) != 1 || marker[0] != "true" {
 				t.Fatalf("request was not rejected before execution: %v, %v", response, err)
 			}
 			op := &sink.ReadOperation{Address: address("a", test.name)}
 			read := &sink.ReadRequest{Operations: []*sink.ReadOperation{op}}
-			result, err := a.core.Read(t.Context(), read)
+			result, err := collectRead(t.Context(), a.core, read)
 			if err != nil || result.Results[0].Status != sink.ReadStatus_READ_STATUS_NOT_FOUND {
 				t.Fatalf("rejected request wrote a record: %v, %v", result, err)
 			}
 		})
 	}
+}
+
+func (n *nativeFixture) Query(req *sink.QueryRequest, stream grpc.ServerStreamingServer[sink.QueryResponse]) error {
+	response, err := n.queryResponse(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	for _, document := range response.Documents {
+		frame := &sink.QueryResponse{Documents: []*sink.Document{document}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	final := &sink.QueryResponse{Complete: true, HasMore: response.HasMore}
+	return stream.Send(final)
+}
+
+func (n *nativeFixture) Scan(req *sink.ScanRequest, stream grpc.ServerStreamingServer[sink.ScanResponse]) error {
+	response, err := n.scanResponse(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	for _, document := range response.Documents {
+		frame := &sink.ScanResponse{Documents: []*sink.Document{document}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	final := &sink.ScanResponse{Complete: true, NextCursor: response.NextCursor}
+	return stream.Send(final)
 }

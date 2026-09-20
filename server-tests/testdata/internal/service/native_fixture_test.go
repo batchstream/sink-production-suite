@@ -57,6 +57,9 @@ func (s *nativeFixtureStorage) Scan(ctx context.Context, req storage.ScanRequest
 		return response, ctx.Err()
 	}
 	document := storage.Document{Encoding: storage.DocumentEncodingJSON, Payload: []byte(`{"value":1}`)}
+	if req.Emit != nil {
+		return response, req.Emit(document)
+	}
 	response.Documents = []storage.Document{document}
 	return response, nil
 }

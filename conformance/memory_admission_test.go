@@ -147,7 +147,10 @@ func testMemoryStoreSaturation(t *testing.T, rounds int) {
 				server.waitIdle(t)
 				gate.open()
 				for _, address := range written {
-					results, err := server.client.Read(t.Context(), address)
+					readRequest := sink.ReadRequest{
+						Addresses: []sink.Address{address},
+					}
+					results, err := server.client.Read(t.Context(), readRequest)
 					if err != nil || len(results) != 1 || results[0].Status != sink.ReadFound {
 						t.Fatalf("independent write missing: %+v %v", results, err)
 					}

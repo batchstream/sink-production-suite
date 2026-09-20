@@ -49,7 +49,7 @@ func TestSearchBatchingIsolatesIndependentVisibleDatasets(t *testing.T) {
 	listener := bufconn.Listen(1 << 20)
 	t.Cleanup(func() { _ = listener.Close() })
 	transport := grpc.NewServer()
-	sink.RegisterSinkServer(transport, server)
+	sink.RegisterSinkServer(transport, server.RPC())
 	t.Cleanup(transport.Stop)
 	go func() { _ = transport.Serve(listener) }()
 	dial := func(ctx context.Context, _ string) (net.Conn, error) { return listener.DialContext(ctx) }
@@ -70,7 +70,7 @@ func TestSearchBatchingIsolatesIndependentVisibleDatasets(t *testing.T) {
 		operation := &sink.WriteOperation{Address: fixture.sinkAddress("visible"), Action: action}
 		request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_VISIBLE, Operations: []*sink.WriteOperation{operation}}
 		go func() {
-			response, err := client.Write(t.Context(), request)
+			response, err := collectWrite(t.Context(), client, request)
 			completed := outcome{response: response, err: err}
 			results[index] <- completed
 		}()

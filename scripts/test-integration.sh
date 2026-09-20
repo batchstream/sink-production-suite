@@ -205,7 +205,7 @@ sampler_pid="$!"
 SINK_ADDRESS=127.0.0.1:18080 \
 SINK_SECONDARY_ADDRESS=127.0.0.1:18081 \
 SINK_SEARCH_ENDPOINT=http://127.0.0.1:19200 \
-	run_checked_tests business-contract TestProductMergeMatchesReferenceThroughSinkAndOpenSearch,TestOfferMergeMatchesReferenceThroughSinkAndOpenSearch,TestStoreKafkaRoutingAndSyncOnlyBehavior,TestReliabilityRejectsOversizedAsyncMutation,TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores,TestReliabilityLuaAliasExpansionIsRejectedWithoutWriting -run '^Test(Product.*|Offer.*|StoreKafka.*|Reliability(Rejects.*|ReadBudget.*|LuaAlias.*))$' -timeout=10m
+	run_checked_tests business-contract TestProductMergeMatchesReferenceThroughSinkAndOpenSearch,TestOfferMergeMatchesReferenceThroughSinkAndOpenSearch,TestStoreKafkaRoutingAndSyncOnlyBehavior,TestReliabilityRejectsOversizedAsyncMutation,TestReliabilityReadStreamsRepeatedKeysAcrossStores/collect,TestReliabilityReadStreamsRepeatedKeysAcrossStores/callback,TestReliabilityLuaAliasExpansionIsRejectedWithoutWriting -run '^Test(Product.*|Offer.*|StoreKafka.*|Reliability(Rejects.*|ReadStreams.*|LuaAlias.*))$' -timeout=10m
 
 # Stable full membership gives both ordinary Gateways the same key owner.
 # These two test-only Gateways have deliberately disjoint Engine views so the

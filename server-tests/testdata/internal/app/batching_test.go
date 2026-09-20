@@ -131,7 +131,7 @@ batching:
 					address := &sink.RecordAddress{Uri: testuri.Record("primary", []string{"items"}, key)}
 					operation := &sink.ReadOperation{Address: address}
 					request := &sink.ReadRequest{Operations: []*sink.ReadOperation{operation}}
-					response, err := client.Read(ctx, request)
+					response, err := collectRead(ctx, client, request)
 					if err != nil {
 						t.Errorf("read: %v", err)
 						return

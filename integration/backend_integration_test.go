@@ -69,7 +69,11 @@ func testConfiguredBackend(t *testing.T, environment *testEnvironment, spec back
 	if err != nil {
 		t.Fatalf("sink.NewPut(create) error = %v", err)
 	}
-	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilVisible, create)
+	writeRequest := sink.WriteRequest{
+		CompletionMode: sink.CompletionWaitUntilVisible,
+		Operations:     []sink.WriteOperation{create},
+	}
+	results, err := environment.client.Write(ctx, writeRequest)
 	if err != nil {
 		t.Fatalf("Write(create) error = %v", err)
 	}
@@ -83,7 +87,11 @@ func testConfiguredBackend(t *testing.T, environment *testEnvironment, spec back
 	}
 	assertBackendDocument(t, ctx, initialExpectation)
 
-	results, err = environment.secondaryClient.Write(ctx, sink.CompletionWaitUntilApplied, create)
+	writeRequest2 := sink.WriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Operations:     []sink.WriteOperation{create},
+	}
+	results, err = environment.secondaryClient.Write(ctx, writeRequest2)
 	if err != nil {
 		t.Fatalf("Write(duplicate create) error = %v", err)
 	}
@@ -119,7 +127,11 @@ func testConfiguredBackend(t *testing.T, environment *testEnvironment, spec back
 				client = environment.secondaryClient
 			}
 			requestContext, requestCancel := context.WithTimeout(ctx, 30*time.Second)
-			mergeResults, writeErr := client.Write(requestContext, sink.CompletionWaitUntilApplied, merge)
+			writeRequest := sink.WriteRequest{
+				CompletionMode: sink.CompletionWaitUntilApplied,
+				Operations:     []sink.WriteOperation{merge},
+			}
+			mergeResults, writeErr := client.Write(requestContext, writeRequest)
 			requestCancel()
 			if writeErr != nil {
 				errorsChannel <- writeErr
@@ -155,7 +167,11 @@ func testConfiguredBackend(t *testing.T, environment *testEnvironment, spec back
 	if err != nil {
 		t.Fatalf("sink.NewPut(async) error = %v", err)
 	}
-	results, err = environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, asyncPut)
+	writeRequest3 := sink.WriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Operations:     []sink.WriteOperation{asyncPut},
+	}
+	results, err = environment.client.Write(ctx, writeRequest3)
 	if err != nil {
 		t.Fatalf("Write(async) error = %v", err)
 	}
@@ -170,7 +186,11 @@ func testConfiguredBackend(t *testing.T, environment *testEnvironment, spec back
 			wantCounter: 7,
 		}
 		assertBackendDocument(t, ctx, asyncExpectation)
-		deleteResults, deleteErr := environment.client.Delete(ctx, sink.CompletionReturnAfterAccepted, asyncAddress)
+		deleteRequest := sink.DeleteRequest{
+			CompletionMode: sink.CompletionReturnAfterAccepted,
+			Addresses:      []sink.Address{asyncAddress},
+		}
+		deleteResults, deleteErr := environment.client.Delete(ctx, deleteRequest)
 		if deleteErr != nil {
 			t.Fatalf("Delete(async) error = %v", deleteErr)
 		}
@@ -189,7 +209,11 @@ func testConfiguredBackend(t *testing.T, environment *testEnvironment, spec back
 		assertDocumentNotFound(t, ctx, environment.client, asyncAddress)
 	}
 
-	deleteResults, err := environment.secondaryClient.Delete(ctx, sink.CompletionWaitUntilVisible, address)
+	deleteRequest2 := sink.DeleteRequest{
+		CompletionMode: sink.CompletionWaitUntilVisible,
+		Addresses:      []sink.Address{address},
+	}
+	deleteResults, err := environment.secondaryClient.Delete(ctx, deleteRequest2)
 	if err != nil {
 		t.Fatalf("Delete(sync) error = %v", err)
 	}
@@ -205,7 +229,10 @@ func assertBackendDocument(
 	expectation backendExpectation,
 ) {
 	t.Helper()
-	results, err := expectation.client.Read(ctx, expectation.address)
+	readRequest := sink.ReadRequest{
+		Addresses: []sink.Address{expectation.address},
+	}
+	results, err := expectation.client.Read(ctx, readRequest)
 	if err != nil {
 		t.Fatalf("Read(backend document) error = %v", err)
 	}
@@ -243,7 +270,10 @@ func waitForDocumentNotFound(t *testing.T, ctx context.Context, client *sink.Cli
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		results, err := client.Read(ctx, address)
+		readRequest := sink.ReadRequest{
+			Addresses: []sink.Address{address},
+		}
+		results, err := client.Read(ctx, readRequest)
 		if err == nil && len(results) == 1 && results[0].Status == sink.ReadNotFound {
 			return
 		}

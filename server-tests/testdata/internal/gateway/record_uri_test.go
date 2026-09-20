@@ -14,7 +14,7 @@ func TestRootResourceDoesNotPoisonRecordBatch(t *testing.T) {
 	root := &sink.RecordAddress{Uri: "sink://a"}
 	invalid.Address = root
 	request := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{valid, invalid}}
-	response, err := gateway.Write(t.Context(), request)
+	response, err := collectWrite(t.Context(), gateway, request)
 	if err != nil {
 		t.Fatal(err)
 	}

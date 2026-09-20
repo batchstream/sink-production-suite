@@ -78,7 +78,11 @@ func TestRepresentativeProductMergeLoad(t *testing.T) {
 					continue
 				}
 				requestStarted := time.Now()
-				writeResults, writeErr := client.Write(ctx, sink.CompletionWaitUntilApplied, task.operation)
+				writeRequest := sink.WriteRequest{
+					CompletionMode: sink.CompletionWaitUntilApplied,
+					Operations:     []sink.WriteOperation{task.operation},
+				}
+				writeResults, writeErr := client.Write(ctx, writeRequest)
 				duration := time.Since(requestStarted)
 				if writeErr == nil && (len(writeResults) != 1 || writeResults[0].Status != sink.WriteApplied || writeResults[0].Failure != nil) {
 					writeErr = fmt.Errorf("operation %d result = %+v", taskIndex, writeResults)

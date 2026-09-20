@@ -39,7 +39,7 @@ func TestLoadGeneratorReconcilesAcknowledgedWrites(t *testing.T) {
 	}
 	codec := protocol.NewVTProtoCodec()
 	server := grpc.NewServer(grpc.ForceServerCodecV2(codec))
-	sink.RegisterSinkServer(server, batched)
+	sink.RegisterSinkServer(server, batched.RPC())
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
 	for _, workload := range []string{"merge", "upsert", "mixed", "heavy-merge"} {

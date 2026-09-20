@@ -39,7 +39,7 @@ func TestLargeLuaFailuresPreserveRPCResults(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				var server sink.SinkServer = core
+				var server sink.SinkServer = core.RPC()
 				if batching {
 					batchOptions := service.BatchingOptions{MaxWait: time.Millisecond}
 					batch, err := service.NewBatchingServer(core, batchOptions)
@@ -47,11 +47,11 @@ func TestLargeLuaFailuresPreserveRPCResults(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer batch.Close()
-					server = batch
+					server = batch.RPC()
 				}
 				seed := putWriteOperation("same", strings.Repeat("错误", 600))
 				seedRequest := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{seed}}
-				seedResponse, err := core.Write(t.Context(), seedRequest)
+				seedResponse, err := collectWrite(t.Context(), core, seedRequest)
 				if err != nil || seedResponse.Results[0].Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
 					t.Fatalf("seed: %v %v", seedResponse, err)
 				}
@@ -78,12 +78,18 @@ func TestLargeLuaFailuresPreserveRPCResults(t *testing.T) {
 				}
 				defer connection.Close()
 				client := sink.NewSinkClient(connection)
-				response, err := client.Write(t.Context(), request)
+				response, err := collectWrite(t.Context(), client, request)
 				if err != nil {
 					t.Fatalf("operation failures broke RPC delivery: %v", err)
 				}
-				if len(response.Results) != 33 || response.SizeVT() > opts.MaxReadBytes {
-					t.Fatalf("unexpected response count/size: %d/%d", len(response.Results), response.SizeVT())
+				if len(response.Results) != 33 {
+					t.Fatalf("unexpected response count: %d", len(response.Results))
+				}
+				for _, result := range response.Results {
+					frame := &sink.WriteResponse{Results: []*sink.WriteResult{result}}
+					if frame.SizeVT() > opts.MaxReadBytes {
+						t.Fatalf("result frame exceeded response budget: %d", frame.SizeVT())
+					}
 				}
 				for index, result := range response.Results[:32] {
 					failure := result.GetFailure()
@@ -94,7 +100,7 @@ func TestLargeLuaFailuresPreserveRPCResults(t *testing.T) {
 				if response.Results[32].Status != sink.WriteStatus_WRITE_STATUS_APPLIED {
 					t.Fatal("successful sibling status lost")
 				}
-				read, err := core.Read(t.Context(), readRequest("successful"))
+				read, err := collectRead(t.Context(), core, readRequest("successful"))
 				if err != nil || string(read.Results[0].GetDocument().GetPayload()) != `{"value":"committed"}` {
 					t.Fatalf("successful sibling was not persisted: %v %v", read, err)
 				}

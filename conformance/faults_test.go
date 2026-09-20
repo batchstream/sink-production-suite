@@ -171,7 +171,10 @@ func assertAbsent(t *testing.T, client *sink.Client, address sink.Address) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	results, err := client.Read(ctx, address)
+	readRequest := sink.ReadRequest{
+		Addresses: []sink.Address{address},
+	}
+	results, err := client.Read(ctx, readRequest)
 	if err != nil || len(results) != 1 || results[0].Status != sink.ReadNotFound {
 		t.Fatalf("expected absent record: %+v, %v", results, err)
 	}
