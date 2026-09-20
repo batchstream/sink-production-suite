@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/batchstream/sink-go/uri"
+	"github.com/liran/sink-go/uri"
 	"github.com/batchstream/sink/internal/testuri"
 
 	sink "github.com/batchstream/sink/gen/sink"

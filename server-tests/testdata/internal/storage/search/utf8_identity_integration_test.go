@@ -11,7 +11,7 @@ import (
 
 	"github.com/batchstream/sink/internal/testuri"
 
-	"github.com/batchstream/sink-go/uri"
+	"github.com/liran/sink-go/uri"
 
 	sink "github.com/batchstream/sink/gen/sink"
 	"github.com/batchstream/sink/internal/merge"
