@@ -107,25 +107,26 @@ func TestStoreIsolatedGatewayPublicContract(t *testing.T) {
 		t.Fatalf("Execute: %v %v", executed, err)
 	}
 
-	t.Run("cross-store-return-budget", func(t *testing.T) {
-		constrainedOpts := serverOptions{role: "gateway", routes: gatewayOpts.routes, readBytes: 200 + 2*1280}
+	t.Run("cross-store-result-streams", func(t *testing.T) {
+		constrainedOpts := serverOptions{role: "gateway", routes: gatewayOpts.routes, readBytes: 1024}
 		constrained := startCandidate(t, constrainedOpts)
-		firstBudgetAddress := addressFor(t, firstIndex, "budget")
-		secondBudgetAddress, err := sink.NewRecordAddress(testuri.Resource("secondary", []string{secondIndex}), sink.StringKey("budget"))
+		firstReturnedAddress := addressFor(t, firstIndex, "budget")
+		secondReturnedAddress, err := sink.NewRecordAddress(testuri.Resource("secondary", []string{secondIndex}), sink.StringKey("budget"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		firstReturned := put(t, firstBudgetAddress, `{"counter":3}`, sink.WriteUpsert).WithReturnedDocument()
-		secondReturned := put(t, secondBudgetAddress, `{"counter":4}`, sink.WriteUpsert).WithReturnedDocument()
-		outcome := <-writeAsync(t.Context(), constrained.client, sink.CompletionWaitUntilApplied, firstReturned, secondReturned)
-		if len(outcome.results) != 2 || outcome.results[0].Status != sink.WriteApplied || outcome.results[1].Failure == nil || outcome.results[1].Failure.Code != sink.FailureResourceExhausted {
-			t.Fatalf("cross-Store budget: %v", outcome)
+		firstDocument := fmt.Sprintf(`{"counter":3,"padding":%q}`, strings.Repeat("a", 600))
+		secondDocument := fmt.Sprintf(`{"counter":4,"padding":%q}`, strings.Repeat("b", 600))
+		firstReturned := put(t, firstReturnedAddress, firstDocument, sink.WriteUpsert).WithReturnedDocument()
+		secondReturned := put(t, secondReturnedAddress, secondDocument, sink.WriteUpsert).WithReturnedDocument()
+		results := applied(t, writeAsync(t.Context(), constrained.client, sink.CompletionWaitUntilApplied, firstReturned, secondReturned), 2)
+		for i, expected := range []string{firstDocument, secondDocument} {
+			if string(results[i].Document.Payload()) != expected {
+				t.Fatalf("cross-Store stream lost returned document %d", i)
+			}
 		}
-		lookup := httpCall{endpoint: backends[1].endpoint, method: http.MethodGet, path: "/" + secondIndex + "/_doc/budget"}
-		code, body := request(t, lookup)
-		if code != http.StatusNotFound {
-			t.Fatalf("over-budget write committed: %d %s", code, body)
-		}
+		assertCounter(t, constrained.client, firstReturnedAddress, 3)
+		assertCounter(t, constrained.client, secondReturnedAddress, 4)
 	})
 	// Killing one Engine leaves the other Store functional and never marks an unknown write safe to retry.
 	first.crash(t)

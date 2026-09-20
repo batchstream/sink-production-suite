@@ -150,7 +150,7 @@ func TestProcessLoggingSurvivesCollectorOutage(t *testing.T) {
 				if attrs["event"] == "process_stopped" {
 					stopped[attrs["role"]] = true
 				}
-				if attrs["role"] == "engine" && attrs["method"] == "ForwardStream" {
+				if attrs["role"] == "engine" && attrs["method"] == "Forward" {
 					forwarded = true
 				}
 				if attrs["role"] == "gateway" && attrs["event"] == "rpc_completed" && attrs["method"] == "Write" && attrs["failed"] == "1" && attrs["level"] == "warn" {

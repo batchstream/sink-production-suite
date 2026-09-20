@@ -210,15 +210,15 @@ func TestVisibleDatasetsCompleteIndependently(t *testing.T) {
 	}
 }
 
-func TestReadBudgetsBelongToOriginalRPC(t *testing.T) {
+func TestReadStreamsUsePerResultLimits(t *testing.T) {
 	for _, store := range searchBackends(t) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "-1")
 			proxy := proxyBackend(t, store)
-			opts := serverOptions{backend: proxy.backend, batchOps: 2, batchWait: 2000, readBytes: 256 + 2*1280}
+			opts := serverOptions{backend: proxy.backend, batchOps: 2, batchWait: 2000, readBytes: 1024}
 			server := startCandidate(t, opts)
 			a, b := addressFor(t, index, "a"), addressFor(t, index, "b")
-			raw := `{"value":"` + strings.Repeat("x", 80) + `"}`
+			raw := `{"value":"` + strings.Repeat("x", 600) + `"}`
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied,
 				put(t, a, raw, sink.WriteUpsert), put(t, b, raw, sink.WriteUpsert)), 2)
 			readRequest := sink.ReadRequest{
@@ -226,7 +226,7 @@ func TestReadBudgetsBelongToOriginalRPC(t *testing.T) {
 			}
 			control, err := server.client.Read(t.Context(), readRequest)
 			if err != nil || len(control) != 1 || control[0].Status != sink.ReadFound {
-				t.Fatalf("single-RPC budget control failed: %+v, %v", control, err)
+				t.Fatalf("single-result limit control failed: %+v, %v", control, err)
 			}
 			type outcome struct {
 				results []sink.ReadResult
@@ -250,21 +250,32 @@ func TestReadBudgetsBelongToOriginalRPC(t *testing.T) {
 				select {
 				case result := <-done:
 					if result.err != nil || len(result.results) != 1 || result.results[0].Status != sink.ReadFound {
-						t.Fatalf("one valid read consumed another RPC's budget: %+v, %v", result.results, result.err)
+						t.Fatalf("independent read failed: %+v, %v", result.results, result.err)
 					}
 				case <-time.After(5 * time.Second):
 					t.Fatal("independent read did not finish")
 				}
 			}
-			// Repeated result documents still count twice within one RPC, even
-			// if the backend snapshot is deduplicated. SDK retries are disabled.
+			// Each result fits in a frame even when their combined size exceeds
+			// the message limit. Duplicate addresses still produce both results.
 			readRequest2 := sink.ReadRequest{
 				Addresses: []sink.Address{a, a},
 			}
 			results, err := server.client.Read(t.Context(), readRequest2)
-			if err != nil || len(results) != 2 || results[0].Status != sink.ReadFound || results[1].Status != sink.ReadFailed ||
-				results[1].Failure == nil || results[1].Failure.Code != sink.FailureResourceExhausted {
-				t.Fatalf("duplicate read escaped output budget: %+v, %v", results, err)
+			if err != nil || len(results) != 2 {
+				t.Fatalf("duplicate read did not complete: results=%d err=%v", len(results), err)
+			}
+			for _, result := range results {
+				if result.Status != sink.ReadFound || string(result.Document.Payload()) != raw {
+					t.Fatal("duplicate read lost its document")
+				}
+			}
+			large := put(t, a, `{"value":"`+strings.Repeat("x", 2048)+`"}`, sink.WriteUpsert)
+			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, large), 1)
+			results, err = server.client.Read(t.Context(), readRequest)
+			if err != nil || len(results) != 1 || results[0].Status != sink.ReadFailed || results[0].Failure == nil ||
+				results[0].Failure.Code != sink.FailureResourceExhausted || len(results[0].Document.Payload()) != 0 {
+				t.Fatalf("oversized result escaped the frame limit: %+v, %v", results, err)
 			}
 		})
 	}
