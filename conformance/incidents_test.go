@@ -65,7 +65,11 @@ func TestAppliedDoesNotInheritVisibleRefresh(t *testing.T) {
 			// Delete has a separate batcher and must meet the same completion contract.
 			done := make(chan error, 1)
 			go func() {
-				results, err := server.client.Delete(t.Context(), sink.CompletionWaitUntilVisible, visible)
+				deleteRequest := sink.DeleteRequest{
+					CompletionMode: sink.CompletionWaitUntilVisible,
+					Addresses:      []sink.Address{visible},
+				}
+				results, err := server.client.Delete(t.Context(), deleteRequest)
 				if err == nil && (len(results) != 1 || results[0].Status != sink.DeleteApplied) {
 					err = fmt.Errorf("visible delete: %+v", results)
 				}
@@ -74,7 +78,11 @@ func TestAppliedDoesNotInheritVisibleRefresh(t *testing.T) {
 			server.waitQueued(t, "Delete")
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
-			results, err := server.client.Delete(ctx, sink.CompletionWaitUntilApplied, archived)
+			deleteRequest := sink.DeleteRequest{
+				CompletionMode: sink.CompletionWaitUntilApplied,
+				Addresses:      []sink.Address{archived},
+			}
+			results, err := server.client.Delete(ctx, deleteRequest)
 			if err != nil || len(results) != 1 || results[0].Status != sink.DeleteApplied {
 				t.Fatalf("applied delete inherited refresh wait: %+v, %v", results, err)
 			}
@@ -213,7 +221,10 @@ func TestReadBudgetsBelongToOriginalRPC(t *testing.T) {
 			raw := `{"value":"` + strings.Repeat("x", 80) + `"}`
 			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied,
 				put(t, a, raw, sink.WriteUpsert), put(t, b, raw, sink.WriteUpsert)), 2)
-			control, err := server.client.Read(t.Context(), []sink.Address{a})
+			readRequest := sink.ReadRequest{
+				Addresses: []sink.Address{a},
+			}
+			control, err := server.client.Read(t.Context(), readRequest)
 			if err != nil || len(control) != 1 || control[0].Status != sink.ReadFound {
 				t.Fatalf("single-RPC budget control failed: %+v, %v", control, err)
 			}
@@ -224,7 +235,10 @@ func TestReadBudgetsBelongToOriginalRPC(t *testing.T) {
 			done := make(chan outcome, 2)
 			for i, address := range []sink.Address{a, b} {
 				go func() {
-					results, err := server.client.Read(t.Context(), []sink.Address{address})
+					readRequest := sink.ReadRequest{
+						Addresses: []sink.Address{address},
+					}
+					results, err := server.client.Read(t.Context(), readRequest)
 					result := outcome{results: results, err: err}
 					done <- result
 				}()
@@ -244,7 +258,10 @@ func TestReadBudgetsBelongToOriginalRPC(t *testing.T) {
 			}
 			// Repeated result documents still count twice within one RPC, even
 			// if the backend snapshot is deduplicated. SDK retries are disabled.
-			results, err := server.client.Read(t.Context(), []sink.Address{a, a})
+			readRequest2 := sink.ReadRequest{
+				Addresses: []sink.Address{a, a},
+			}
+			results, err := server.client.Read(t.Context(), readRequest2)
 			if err != nil || len(results) != 2 || results[0].Status != sink.ReadFound || results[1].Status != sink.ReadFailed ||
 				results[1].Failure == nil || results[1].Failure.Code != sink.FailureResourceExhausted {
 				t.Fatalf("duplicate read escaped output budget: %+v, %v", results, err)
@@ -317,7 +334,10 @@ func TestReplaceRechecksExistenceAfterConflict(t *testing.T) {
 				if proxy.count("/_bulk", "sibling") != 1 || proxy.count("/_mget", "replace") != 2 {
 					t.Fatal("replace retry did not reread exactly once or replayed its successful sibling")
 				}
-				results, err := server.client.Read(t.Context(), []sink.Address{replaced})
+				readRequest := sink.ReadRequest{
+					Addresses: []sink.Address{replaced},
+				}
+				results, err := server.client.Read(t.Context(), readRequest)
 				if err != nil || len(results) != 1 {
 					t.Fatalf("read replacement: %+v %v", results, err)
 				}
@@ -375,7 +395,10 @@ func assertCounter(t *testing.T, client *sink.Client, address sink.Address, want
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	results, err := client.Read(ctx, []sink.Address{address})
+	readRequest := sink.ReadRequest{
+		Addresses: []sink.Address{address},
+	}
+	results, err := client.Read(ctx, readRequest)
 	if err != nil || len(results) != 1 || results[0].Status != sink.ReadFound {
 		t.Fatalf("read %s: %+v, %v", address.URI(), results, err)
 	}

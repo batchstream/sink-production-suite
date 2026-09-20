@@ -154,7 +154,10 @@ func runHistoryCall(ctx context.Context, client *sink.Client, address sink.Addre
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if entry.Kind == historycheck.Read {
-		results, err := client.Read(ctx, []sink.Address{address})
+		readRequest := sink.ReadRequest{
+			Addresses: []sink.Address{address},
+		}
+		results, err := client.Read(ctx, readRequest)
 		if err != nil || len(results) != 1 {
 			return result, fmt.Errorf("read result count=%d error=%v", len(results), err)
 		}
@@ -181,7 +184,11 @@ func runHistoryCall(ctx context.Context, client *sink.Client, address sink.Addre
 		}
 	}
 	if entry.Kind == historycheck.Delete {
-		results, err := client.Delete(ctx, sink.CompletionWaitUntilApplied, address)
+		deleteRequest := sink.DeleteRequest{
+			CompletionMode: sink.CompletionWaitUntilApplied,
+			Addresses:      []sink.Address{address},
+		}
+		results, err := client.Delete(ctx, deleteRequest)
 		if err != nil || len(results) != 1 || results[0].OperationIndex != 0 || results[0].Status != sink.DeleteApplied || results[0].Failure != nil {
 			return result, fmt.Errorf("delete: %+v, %v", results, err)
 		}
@@ -212,7 +219,11 @@ func runHistoryCall(ctx context.Context, client *sink.Client, address sink.Addre
 	if err != nil {
 		return result, err
 	}
-	results, err := client.Write(ctx, sink.CompletionWaitUntilApplied, []sink.WriteOperation{operation})
+	writeRequest := sink.WriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Operations:     []sink.WriteOperation{operation},
+	}
+	results, err := client.Write(ctx, writeRequest)
 	if err != nil || len(results) != 1 || results[0].OperationIndex != 0 {
 		return result, fmt.Errorf("write: %+v, %v", results, err)
 	}

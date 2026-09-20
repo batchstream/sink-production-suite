@@ -36,12 +36,15 @@ func TestStoreKafkaRoutingAndSyncOnlyBehavior(t *testing.T) {
 		t.Fatalf("sink.NewPut(sync-only async) error = %v", err)
 	}
 
+	writeRequest := sink.WriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Operations: []sink.WriteOperation{primaryPut,
+			secondaryPut,
+			syncOnlyAsyncPut},
+	}
 	results, err := environment.client.Write(
 		ctx,
-		sink.CompletionReturnAfterAccepted,
-		[]sink.WriteOperation{primaryPut,
-			secondaryPut,
-			syncOnlyAsyncPut})
+		writeRequest)
 	if err != nil {
 		t.Fatalf("Write(mixed store async batch) error = %v", err)
 	}
@@ -75,14 +78,22 @@ func TestStoreKafkaRoutingAndSyncOnlyBehavior(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sink.NewPut(sync-only synchronous) error = %v", err)
 	}
-	results, err = environment.client.Write(ctx, sink.CompletionWaitUntilVisible, []sink.WriteOperation{syncOnlyPut})
+	writeRequest2 := sink.WriteRequest{
+		CompletionMode: sink.CompletionWaitUntilVisible,
+		Operations:     []sink.WriteOperation{syncOnlyPut},
+	}
+	results, err = environment.client.Write(ctx, writeRequest2)
 	if err != nil {
 		t.Fatalf("Write(sync-only synchronous) error = %v", err)
 	}
 	assertWriteResults(t, results, sink.WriteApplied)
 	waitForDocumentFound(t, ctx, environment.client, syncOnlyAddress)
 
-	deleteResults, err := environment.client.Delete(ctx, sink.CompletionReturnAfterAccepted, syncOnlyAddress)
+	deleteRequest := sink.DeleteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Addresses:      []sink.Address{syncOnlyAddress},
+	}
+	deleteResults, err := environment.client.Delete(ctx, deleteRequest)
 	if err != nil {
 		t.Fatalf("Delete(sync-only asynchronous) error = %v", err)
 	}
@@ -95,7 +106,11 @@ func TestStoreKafkaRoutingAndSyncOnlyBehavior(t *testing.T) {
 	}
 	waitForDocumentFound(t, ctx, environment.client, syncOnlyAddress)
 
-	deleteResults, err = environment.client.Delete(ctx, sink.CompletionWaitUntilVisible, syncOnlyAddress)
+	deleteRequest2 := sink.DeleteRequest{
+		CompletionMode: sink.CompletionWaitUntilVisible,
+		Addresses:      []sink.Address{syncOnlyAddress},
+	}
+	deleteResults, err = environment.client.Delete(ctx, deleteRequest2)
 	if err != nil {
 		t.Fatalf("Delete(sync-only synchronous) error = %v", err)
 	}
@@ -110,7 +125,10 @@ func waitForDocumentFound(t *testing.T, ctx context.Context, client *sink.Client
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		results, err := client.Read(ctx, []sink.Address{address})
+		readRequest := sink.ReadRequest{
+			Addresses: []sink.Address{address},
+		}
+		results, err := client.Read(ctx, readRequest)
 		if err == nil && len(results) == 1 && results[0].Status == sink.ReadFound {
 			return
 		}
@@ -124,7 +142,10 @@ func waitForDocumentFound(t *testing.T, ctx context.Context, client *sink.Client
 
 func assertDocumentNotFound(t *testing.T, ctx context.Context, client *sink.Client, address sink.Address) {
 	t.Helper()
-	results, err := client.Read(ctx, []sink.Address{address})
+	readRequest := sink.ReadRequest{
+		Addresses: []sink.Address{address},
+	}
+	results, err := client.Read(ctx, readRequest)
 	if err != nil {
 		t.Fatalf("Read(sync-only after async rejection) error = %v", err)
 	}

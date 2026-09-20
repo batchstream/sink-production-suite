@@ -293,7 +293,11 @@ func acceptedDelete(t *testing.T, client *sink.Client, address sink.Address) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	results, err := client.Delete(ctx, sink.CompletionReturnAfterAccepted, address)
+	deleteRequest := sink.DeleteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Addresses:      []sink.Address{address},
+	}
+	results, err := client.Delete(ctx, deleteRequest)
 	if err != nil || len(results) != 1 || results[0].Status != sink.DeleteAccepted || results[0].Failure != nil {
 		t.Fatalf("accept delete: %+v, %v", results, err)
 	}

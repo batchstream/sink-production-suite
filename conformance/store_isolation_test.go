@@ -69,7 +69,10 @@ func TestStoreIsolatedGatewayPublicContract(t *testing.T) {
 	firstOp := put(t, firstAddress, `{"counter":1}`, sink.WriteUpsert)
 	secondOp := put(t, secondAddress, `{"counter":2}`, sink.WriteUpsert)
 	applied(t, writeAsync(t.Context(), gateway.client, sink.CompletionWaitUntilVisible, firstOp, secondOp), 2)
-	records, err := gateway.client.Read(t.Context(), []sink.Address{secondAddress, firstAddress, secondAddress})
+	readRequest := sink.ReadRequest{
+		Addresses: []sink.Address{secondAddress, firstAddress, secondAddress},
+	}
+	records, err := gateway.client.Read(t.Context(), readRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +137,11 @@ func TestStoreIsolatedGatewayPublicContract(t *testing.T) {
 	if outcome.results[0].Failure == nil || outcome.results[0].Failure.Retryable || outcome.results[1].Status != sink.WriteApplied {
 		t.Fatalf("Store failure leaked or became replayable: %v", outcome)
 	}
-	deleted, err := gateway.client.Delete(t.Context(), sink.CompletionWaitUntilApplied, secondAddress)
+	deleteRequest := sink.DeleteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Addresses:      []sink.Address{secondAddress},
+	}
+	deleted, err := gateway.client.Delete(t.Context(), deleteRequest)
 	if err != nil || deleted[0].Status != sink.DeleteApplied {
 		t.Fatalf("Delete: %v %v", deleted, err)
 	}

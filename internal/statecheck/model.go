@@ -106,7 +106,11 @@ func runSequence(t *testing.T, opts Options, name string, sequence []step) {
 			return
 		}
 		attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
-		results, err := opts.Client.Write(attempt, sink.CompletionWaitUntilApplied, operations)
+		writeRequest := sink.WriteRequest{
+			CompletionMode: sink.CompletionWaitUntilApplied,
+			Operations:     operations,
+		}
+		results, err := opts.Client.Write(attempt, writeRequest)
 		cancel()
 		if err != nil || len(results) != len(expected) {
 			t.Fatalf("%s at step %d sequence=%+v: RPC=%v results=%+v", name, position, sequence[:position+1], err, results)
@@ -134,7 +138,11 @@ func runSequence(t *testing.T, opts Options, name string, sequence []step) {
 			if operation.kind == 5 {
 				address := addresses[operation.key]
 				attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
-				results, err := opts.Client.Delete(attempt, sink.CompletionWaitUntilApplied, address, address)
+				deleteRequest := sink.DeleteRequest{
+					CompletionMode: sink.CompletionWaitUntilApplied,
+					Addresses:      []sink.Address{address, address},
+				}
+				results, err := opts.Client.Delete(attempt, deleteRequest)
 				cancel()
 				if err != nil || len(results) != 2 {
 					t.Fatalf("%s step=%d duplicate delete: %+v %v", name, position, results, err)
@@ -230,7 +238,10 @@ func checkState(t *testing.T, ctx context.Context, check readCheck) {
 	for i, key := range keys {
 		addresses[i] = check.addresses[key]
 	}
-	results, err := check.client.Read(ctx, addresses)
+	readRequest := sink.ReadRequest{
+		Addresses: addresses,
+	}
+	results, err := check.client.Read(ctx, readRequest)
 	if err != nil || len(results) != len(addresses) {
 		t.Fatalf("%s read: %+v, %v", check.name, results, err)
 	}

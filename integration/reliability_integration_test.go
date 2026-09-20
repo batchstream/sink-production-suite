@@ -26,7 +26,11 @@ func TestReliabilityRejectsOversizedAsyncMutation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err := environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, []sink.WriteOperation{operation})
+	writeRequest := sink.WriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Operations:     []sink.WriteOperation{operation},
+	}
+	results, err := environment.client.Write(ctx, writeRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +47,11 @@ func TestReliabilityRejectsOversizedAsyncMutation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	results, err = environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, []sink.WriteOperation{validOperation})
+	writeRequest2 := sink.WriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Operations:     []sink.WriteOperation{validOperation},
+	}
+	results, err = environment.client.Write(ctx, writeRequest2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +85,10 @@ func TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores(t *testing.T) {
 			addresses[i] = secondary
 		}
 	}
-	results, err := firstAttempt.Read(ctx, addresses)
+	readRequest := sink.ReadRequest{
+		Addresses: addresses,
+	}
+	results, err := firstAttempt.Read(ctx, readRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +117,10 @@ func TestReliabilityReadBudgetCountsRepeatedKeysAcrossStores(t *testing.T) {
 	}
 	t.Logf("first response: %d found, %d retryable budget rejections", found, exhausted)
 	// The normal SDK retries only unresolved entries, eventually reading all.
-	results, err = environment.client.Read(ctx, addresses)
+	readRequest2 := sink.ReadRequest{
+		Addresses: addresses,
+	}
+	results, err = environment.client.Read(ctx, readRequest2)
 	if err != nil || len(results) != len(addresses) {
 		t.Fatalf("read with SDK retries: %d results, error=%v", len(results), err)
 	}
@@ -133,7 +147,11 @@ func TestReliabilityLuaAliasExpansionIsRejectedWithoutWriting(t *testing.T) {
 end`)
 	incoming := map[string]any{"value": strings.Repeat("x", 4096)}
 	operation := newMergeOperation(t, address, incoming, source)
-	results, err := environment.client.Write(ctx, sink.CompletionWaitUntilApplied, []sink.WriteOperation{operation})
+	writeRequest := sink.WriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Operations:     []sink.WriteOperation{operation},
+	}
+	results, err := environment.client.Write(ctx, writeRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,14 +197,22 @@ func TestReliabilityDeadLetterRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		results, err := environment.client.Write(ctx, sink.CompletionReturnAfterAccepted, []sink.WriteOperation{create, update})
+		writeRequest := sink.WriteRequest{
+			CompletionMode: sink.CompletionReturnAfterAccepted,
+			Operations:     []sink.WriteOperation{create, update},
+		}
+		results, err := environment.client.Write(ctx, writeRequest)
 		if err != nil {
 			t.Fatal(err)
 		}
 		assertWriteResults(t, results, sink.WriteAccepted)
 		desired.wantCounter = 2
 	case "repair":
-		results, err := environment.client.Delete(ctx, sink.CompletionWaitUntilVisible, address)
+		deleteRequest := sink.DeleteRequest{
+			CompletionMode: sink.CompletionWaitUntilVisible,
+			Addresses:      []sink.Address{address},
+		}
+		results, err := environment.client.Delete(ctx, deleteRequest)
 		if err != nil || len(results) != 1 || results[0].Status != sink.DeleteApplied {
 			t.Fatalf("repair conflict: results=%+v error=%v", results, err)
 		}

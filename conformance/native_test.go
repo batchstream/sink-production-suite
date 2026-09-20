@@ -373,7 +373,11 @@ func TestReturnedWriteBudgetsBelongToOriginalRPC(t *testing.T) {
 			address := addressFor(t, index, "budget")
 			first := put(t, address, fmt.Sprintf(`{"counter":1,"pad":%q}`, strings.Repeat("a", 400)), sink.WriteUpsert).WithReturnedDocument()
 			second := put(t, address, fmt.Sprintf(`{"counter":2,"pad":%q}`, strings.Repeat("b", 400)), sink.WriteUpsert).WithReturnedDocument()
-			results, err := server.client.Write(t.Context(), sink.CompletionWaitUntilApplied, []sink.WriteOperation{first, second})
+			writeRequest := sink.WriteRequest{
+				CompletionMode: sink.CompletionWaitUntilApplied,
+				Operations:     []sink.WriteOperation{first, second},
+			}
+			results, err := server.client.Write(t.Context(), writeRequest)
 			if err != nil || len(results) != 2 || results[0].Status != sink.WriteApplied || results[1].Status != sink.WriteFailed ||
 				results[1].Failure == nil || results[1].Failure.Code != sink.FailureResourceExhausted || len(results[1].Document.Payload()) != 0 {
 				t.Fatalf("returned response budget did not reject before the second commit: %+v, %v", results, err)

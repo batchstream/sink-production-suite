@@ -54,7 +54,11 @@ func TestNativeBackendScanCheckpointsDuringBusinessChanges(t *testing.T) {
 					want = []int64{2, 1, 0, -1}
 				}
 				address := sinkAddressForStore(t, f.spec.name, f.name, fmt.Sprintf("record-%02d", deleted))
-				deletedResults, err := f.environment.client.Delete(t.Context(), sink.CompletionWaitUntilVisible, address)
+				deleteRequest := sink.DeleteRequest{
+					CompletionMode: sink.CompletionWaitUntilVisible,
+					Addresses:      []sink.Address{address},
+				}
+				deletedResults, err := f.environment.client.Delete(t.Context(), deleteRequest)
 				if err != nil || len(deletedResults) != 1 || deletedResults[0].Status != sink.DeleteApplied {
 					t.Fatalf("delete during scan: %+v err=%v", deletedResults, err)
 				}
@@ -64,7 +68,11 @@ func TestNativeBackendScanCheckpointsDuringBusinessChanges(t *testing.T) {
 					{UID: fmt.Sprintf("record-%02d", changed), Counter: int64(changed), Value: "changed"},
 				} {
 					record := sink.Record{Key: sink.StringKey(value.UID), Value: value}
-					results, err := f.dataset.Upsert(t.Context(), sink.CompletionWaitUntilVisible, []sink.Record{record})
+					upsertRequest := sink.DatasetWriteRequest{
+						CompletionMode: sink.CompletionWaitUntilVisible,
+						Records:        []sink.Record{record},
+					}
+					results, err := f.dataset.Upsert(t.Context(), upsertRequest)
 					if err != nil {
 						t.Fatal(err)
 					}
