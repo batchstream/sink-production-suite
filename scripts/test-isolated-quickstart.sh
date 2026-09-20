@@ -7,7 +7,7 @@ sink_dir="${SINK_SERVER_DIR:-${suite_dir}/../sink}"
 sdk_dir="${SINK_GO_DIR:-}"
 if [[ -z "${sdk_dir}" ]]; then
   go -C "${sink_dir}" mod download github.com/batchstream/sink-go
-  sdk_dir="$(go -C "${sink_dir}" list -m -f '{{.Dir}}' github.com/liran/sink-go)"
+  sdk_dir="$(go -C "${sink_dir}" list -m -f '{{.Dir}}' github.com/batchstream/sink-go)"
 fi
 artifacts="$(mktemp -d "${TMPDIR:-/tmp}/sink-isolated-smoke.XXXXXXXX")"
 project="sink-isolated-smoke-$$"
