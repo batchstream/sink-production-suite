@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"testing"
 
-	sink "github.com/liran/sink/gen/sink"
-	"github.com/liran/sink/internal/merge"
-	"github.com/liran/sink/internal/service"
+	sink "github.com/batchstream/sink/gen/sink"
+	"github.com/batchstream/sink/internal/merge"
+	"github.com/batchstream/sink/internal/service"
 )
 
 func TestSearchFoldsPutsWithMergeAndRepeatedReadsDeletes(t *testing.T) {

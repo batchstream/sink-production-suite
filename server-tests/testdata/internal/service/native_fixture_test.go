@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/liran/sink/internal/storage"
-	"github.com/liran/sink/internal/storage/memory"
+	"github.com/batchstream/sink/internal/storage"
+	"github.com/batchstream/sink/internal/storage/memory"
 )
 
 type nativeFixtureStorage struct {

@@ -62,12 +62,12 @@ suite_go_flags=(-mod=readonly)
 if [[ -n "${SINK_GO_DIR:-}" ]]; then
   cp go.mod "${SINK_CONFORMANCE_ARTIFACTS}/suite.go.mod"
   cp go.sum "${SINK_CONFORMANCE_ARTIFACTS}/suite.go.sum"
-  go mod edit -modfile="${SINK_CONFORMANCE_ARTIFACTS}/suite.go.mod" -replace="github.com/liran/sink-go=${SINK_GO_DIR}"
+  go mod edit -modfile="${SINK_CONFORMANCE_ARTIFACTS}/suite.go.mod" -replace="github.com/batchstream/sink-go=${SINK_GO_DIR}"
   suite_go_flags+=("-modfile=${SINK_CONFORMANCE_ARTIFACTS}/suite.go.mod")
 fi
 # Run every ordinary SDK test and require the latest Scan retry and projection
 # regressions. A stale SDK with missing tests must not silently pass the gate.
-go test "${suite_go_flags[@]}" -race github.com/liran/sink-go \
+go test "${suite_go_flags[@]}" -race github.com/batchstream/sink-go \
   -run '^(Test|Example)' -count=1 -timeout=3m -json > "${SINK_CONFORMANCE_ARTIFACTS}/client-unit-tests.jsonl"
 go run ./cmd/check-test-events --file "${SINK_CONFORMANCE_ARTIFACTS}/client-unit-tests.jsonl" \
   --require 'TestScanRetriesAdmissionWithIdenticalPage,TestScanAdmissionRetriesAreBoundedOrDisabled,TestScanDoesNotRetryUnmarkedOrOtherFailures,TestScanRetryBackoffHonorsCancellationAndTotalTimeout,TestScanProjectionWirePresenceAndValidation'
@@ -78,7 +78,7 @@ SINK_CANDIDATE_ARTIFACTS="${SINK_CONFORMANCE_ARTIFACTS}" bash "${script_dir}/ser
   -count=1 -timeout=2m -json > "${SINK_CONFORMANCE_ARTIFACTS}/gateway-dns-tests.jsonl"
 go run ./cmd/check-test-events --file "${SINK_CONFORMANCE_ARTIFACTS}/gateway-dns-tests.jsonl" \
   --require 'TestGatewayDiscoversDNSScaleChanges,TestGatewayDNSWithdrawalDrainBoundary/withdraw-before-stop,TestGatewayDNSWithdrawalDrainBoundary/stop-before-refresh,TestGatewayDNSWithdrawalDrainBoundary/dns-outage-during-stop,TestGatewayDNSWithdrawalDrainBoundary/stale-cache-during-stop,TestGatewayDNSWithdrawalDrainBoundary/scale-to-zero'
-go test "${suite_go_flags[@]}" -race -tags=integration github.com/liran/sink-go \
+go test "${suite_go_flags[@]}" -race -tags=integration github.com/batchstream/sink-go \
   -run '^TestDial(BalancesWritesAndFollowsEndpointChanges|DiscoversDNSScaleChangesWithHealthyConnections)$' \
   -count=1 -timeout=3m -json | tee "${SINK_CONFORMANCE_ARTIFACTS}/client-tests.jsonl"
 go run ./cmd/check-test-events --file "${SINK_CONFORMANCE_ARTIFACTS}/client-tests.jsonl" \

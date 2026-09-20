@@ -3,7 +3,7 @@ package gateway
 import (
 	"context"
 	"fmt"
-	sink "github.com/liran/sink/gen/sink"
+	sink "github.com/batchstream/sink/gen/sink"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"io"

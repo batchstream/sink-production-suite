@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	sink "github.com/liran/sink-go"
+	sink "github.com/batchstream/sink-go"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 

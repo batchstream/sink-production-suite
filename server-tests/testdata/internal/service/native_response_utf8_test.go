@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/liran/sink/internal/protocol"
-	"github.com/liran/sink/internal/storage"
+	"github.com/batchstream/sink/internal/protocol"
+	"github.com/batchstream/sink/internal/storage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

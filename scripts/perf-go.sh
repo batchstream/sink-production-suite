@@ -11,7 +11,7 @@ artifacts="$(cd "${artifacts}" && pwd)"
 modfile="${artifacts}/perf.go.mod"
 cp "${tool_dir}/go.mod" "${modfile}"
 cp "${tool_dir}/go.sum" "${artifacts}/perf.go.sum"
-go -C "${tool_dir}" mod edit -modfile="${modfile}" -replace="github.com/liran/sink=${server_dir}"
+go -C "${tool_dir}" mod edit -modfile="${modfile}" -replace="github.com/batchstream/sink=${server_dir}"
 operation="${1:?usage: perf-go.sh <build|test|vet> [go arguments...]}"
 shift
 case "${operation}" in

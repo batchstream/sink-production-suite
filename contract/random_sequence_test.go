@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink-production-suite/internal/fixture"
-	"github.com/liran/sink-production-suite/internal/luatest"
-	"github.com/liran/sink-production-suite/internal/reference"
-	"github.com/liran/sink-production-suite/programs"
+	"github.com/batchstream/sink-production-suite/internal/fixture"
+	"github.com/batchstream/sink-production-suite/internal/luatest"
+	"github.com/batchstream/sink-production-suite/internal/reference"
+	"github.com/batchstream/sink-production-suite/programs"
 )
 
 const (

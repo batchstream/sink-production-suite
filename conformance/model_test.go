@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"testing"
 
-	sink "github.com/liran/sink-go"
-	"github.com/liran/sink-production-suite/internal/statecheck"
+	sink "github.com/batchstream/sink-go"
+	"github.com/batchstream/sink-production-suite/internal/statecheck"
 )
 
 func TestOperationStateMachine(t *testing.T) {

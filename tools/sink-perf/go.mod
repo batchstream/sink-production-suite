@@ -1,10 +1,10 @@
-module github.com/liran/sink/qualification/perf
+module github.com/batchstream/sink/qualification/perf
 
 go 1.27.0
 
 require (
-	github.com/liran/sink v0.17.0
-	github.com/liran/sink-go v0.9.1-0.20260920094052-14251539240b
+	github.com/batchstream/sink v0.19.1-0.20260920205447-5709a1cc5847
+	github.com/batchstream/sink-go v0.10.1-0.20260920205313-e508153fce67
 	go.mongodb.org/mongo-driver/v2 v2.9.1
 	google.golang.org/grpc v1.83.2
 )
@@ -13,6 +13,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/iceisfun/golua v1.1.1 // indirect
+	github.com/liran/sink-go v0.9.1-0.20260920094052-14251539240b // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/prometheus/client_golang v1.24.1 // indirect

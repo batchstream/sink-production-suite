@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	forward "github.com/liran/sink/gen/forward"
-	sink "github.com/liran/sink/gen/sink"
+	forward "github.com/batchstream/sink/gen/forward"
+	sink "github.com/batchstream/sink/gen/sink"
 	"golang.org/x/net/dns/dnsmessage"
 	"google.golang.org/grpc"
 )

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/liran/sink/internal/protocol"
+	"github.com/batchstream/sink/internal/protocol"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
-	sink "github.com/liran/sink/gen/sink"
-	"github.com/liran/sink/internal/storage"
+	sink "github.com/batchstream/sink/gen/sink"
+	"github.com/batchstream/sink/internal/storage"
 )
 
 func TestReadMicrobatchStorageWorkingSet(t *testing.T) {

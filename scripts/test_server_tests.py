@@ -17,7 +17,7 @@ class ServerTestOverlay(unittest.TestCase):
         self.root = Path(temporary.name).resolve()
         self.server = self.root / "sink"
         self.server.mkdir()
-        (self.server / "go.mod").write_text("module github.com/liran/sink\n")
+        (self.server / "go.mod").write_text("module github.com/batchstream/sink\n")
         (self.server / "internal/example").mkdir(parents=True)
         self.sources = self.root / "sources"
         (self.sources / "internal/example").mkdir(parents=True)

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	sink "github.com/liran/sink-go"
-	"github.com/liran/sink-production-suite/internal/fixture"
-	"github.com/liran/sink-production-suite/internal/reference"
-	"github.com/liran/sink-production-suite/programs"
+	sink "github.com/batchstream/sink-go"
+	"github.com/batchstream/sink-production-suite/internal/fixture"
+	"github.com/batchstream/sink-production-suite/internal/reference"
+	"github.com/batchstream/sink-production-suite/programs"
 )
 
 func TestProductMergeMatchesReferenceThroughSinkAndOpenSearch(t *testing.T) {

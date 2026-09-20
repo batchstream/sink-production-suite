@@ -9,9 +9,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/liran/sink-production-suite/internal/testuri"
+	"github.com/batchstream/sink-production-suite/internal/testuri"
 
-	sink "github.com/liran/sink-go"
+	sink "github.com/batchstream/sink-go"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

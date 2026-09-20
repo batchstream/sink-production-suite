@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink-production-suite/internal/testuri"
+	"github.com/batchstream/sink-production-suite/internal/testuri"
 
-	sink "github.com/liran/sink-go"
-	"github.com/liran/sink-production-suite/internal/reference"
+	sink "github.com/batchstream/sink-go"
+	"github.com/batchstream/sink-production-suite/internal/reference"
 	"google.golang.org/grpc/credentials/insecure"
 )
 

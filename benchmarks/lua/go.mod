@@ -1,4 +1,4 @@
-module github.com/liran/sink-production-suite/benchmarks/lua
+module github.com/batchstream/sink-production-suite/benchmarks/lua
 
 go 1.27.0
 

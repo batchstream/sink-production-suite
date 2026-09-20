@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink-production-suite/internal/testuri"
+	"github.com/batchstream/sink-production-suite/internal/testuri"
 
-	sink "github.com/liran/sink-go"
+	sink "github.com/batchstream/sink-go"
 )
 
 // Options selects the real service, encoding and RPC boundaries under test.

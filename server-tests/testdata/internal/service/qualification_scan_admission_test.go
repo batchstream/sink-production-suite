@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	sink "github.com/liran/sink/gen/sink"
-	"github.com/liran/sink/internal/storage/search"
+	sink "github.com/batchstream/sink/gen/sink"
+	"github.com/batchstream/sink/internal/storage/search"
 )
 
 func TestSearchScanUsesProcessAdmission(t *testing.T) {

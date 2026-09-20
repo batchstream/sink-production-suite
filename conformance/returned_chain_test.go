@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	sink "github.com/liran/sink-go"
+	sink "github.com/batchstream/sink-go"
 )
 
 func TestReturnedChainReleasesIndependentPut(t *testing.T) {
