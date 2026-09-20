@@ -446,10 +446,7 @@ type writeOutcome struct {
 func writeAsync(ctx context.Context, client *sink.Client, mode sink.CompletionMode, operations ...sink.WriteOperation) <-chan writeOutcome {
 	done := make(chan writeOutcome, 1)
 	go func() {
-		writeRequest := sink.WriteRequest{
-			CompletionMode: mode,
-			Operations:     operations,
-		}
+		writeRequest := sink.NewWriteRequest(operations...).WithCompletionMode(mode)
 		results, err := client.Write(ctx, writeRequest)
 		outcome := writeOutcome{results: results, err: err}
 		done <- outcome

@@ -106,10 +106,7 @@ func runSequence(t *testing.T, opts Options, name string, sequence []step) {
 			return
 		}
 		attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
-		writeRequest := sink.WriteRequest{
-			CompletionMode: sink.CompletionWaitUntilApplied,
-			Operations:     operations,
-		}
+		writeRequest := sink.NewWriteRequest(operations...)
 		results, err := opts.Client.Write(attempt, writeRequest)
 		cancel()
 		if err != nil || len(results) != len(expected) {
@@ -138,10 +135,7 @@ func runSequence(t *testing.T, opts Options, name string, sequence []step) {
 			if operation.kind == 5 {
 				address := addresses[operation.key]
 				attempt, cancel := context.WithTimeout(ctx, 5*time.Second)
-				deleteRequest := sink.DeleteRequest{
-					CompletionMode: sink.CompletionWaitUntilApplied,
-					Addresses:      []sink.Address{address, address},
-				}
+				deleteRequest := sink.NewDeleteRequest(address, address)
 				results, err := opts.Client.Delete(attempt, deleteRequest)
 				cancel()
 				if err != nil || len(results) != 2 {
@@ -238,9 +232,7 @@ func checkState(t *testing.T, ctx context.Context, check readCheck) {
 	for i, key := range keys {
 		addresses[i] = check.addresses[key]
 	}
-	readRequest := sink.ReadRequest{
-		Addresses: addresses,
-	}
+	readRequest := sink.NewReadRequest(addresses...)
 	results, err := check.client.Read(ctx, readRequest)
 	if err != nil || len(results) != len(addresses) {
 		t.Fatalf("%s read: %+v, %v", check.name, results, err)

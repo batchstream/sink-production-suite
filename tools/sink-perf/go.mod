@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/liran/sink v0.17.0
-	github.com/liran/sink-go v0.9.1-0.20260920091407-59b2ec143cc2
+	github.com/liran/sink-go v0.9.1-0.20260920093327-8979b087f33e
 	go.mongodb.org/mongo-driver/v2 v2.9.1
 	google.golang.org/grpc v1.83.2
 )
