@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/liran/sink/internal/storage"
+	"github.com/batchstream/sink/internal/storage"
 )
 
 func TestManagedQueriesCannotOverwriteSearchNamedDocument(t *testing.T) {

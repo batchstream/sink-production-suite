@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	sink "github.com/liran/sink-go"
-	"github.com/liran/sink-production-suite/internal/testuri"
+	sink "github.com/batchstream/sink-go"
+	"github.com/batchstream/sink-production-suite/internal/testuri"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

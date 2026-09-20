@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/liran/sink/internal/storage"
-	"github.com/liran/sink/internal/storage/search"
+	"github.com/batchstream/sink/internal/storage"
+	"github.com/batchstream/sink/internal/storage/search"
 )
 
 func TestSearchNativeMutationTransportBoundary(t *testing.T) {

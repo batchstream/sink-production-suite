@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink/internal/config"
+	"github.com/batchstream/sink/internal/config"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )

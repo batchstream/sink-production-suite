@@ -1,10 +1,10 @@
-module github.com/liran/sink-production-suite
+module github.com/batchstream/sink-production-suite
 
 go 1.27.0
 
 require (
+	github.com/batchstream/sink-go v0.10.1-0.20260920205313-e508153fce67
 	github.com/iceisfun/golua v1.1.1
-	github.com/liran/sink-go v0.10.0
 	github.com/twmb/franz-go v1.21.6
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	go.mongodb.org/mongo-driver/v2 v2.8.2

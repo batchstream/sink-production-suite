@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	sink "github.com/liran/sink-go"
-	"github.com/liran/sink-production-suite/internal/historycheck"
+	sink "github.com/batchstream/sink-go"
+	"github.com/batchstream/sink-production-suite/internal/historycheck"
 )
 
 func TestConcurrentHistories(t *testing.T) {

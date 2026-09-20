@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	sink "github.com/liran/sink-go"
-	"github.com/liran/sink-production-suite/internal/statecheck"
+	sink "github.com/batchstream/sink-go"
+	"github.com/batchstream/sink-production-suite/internal/statecheck"
 	"google.golang.org/grpc/credentials/insecure"
 )
 

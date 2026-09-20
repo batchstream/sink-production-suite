@@ -3,7 +3,7 @@ package service_test
 import (
 	"context"
 	"fmt"
-	sink "github.com/liran/sink/gen/sink"
+	sink "github.com/batchstream/sink/gen/sink"
 	"google.golang.org/grpc"
 	"io"
 	"sort"

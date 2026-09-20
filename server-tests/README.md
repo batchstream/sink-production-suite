@@ -58,7 +58,7 @@ non-test production overlays. A candidate from before this migration must use
 its matching older pinned suite.
 
 The performance tool is a real nested module under `tools/sink-perf`. Its module
-path is beneath `github.com/liran/sink` so it can use the candidate's existing
+path is beneath `github.com/batchstream/sink` so it can use the candidate's existing
 VT codec without changing benchmark serialization. `scripts/perf-go.sh` creates
 a temporary module file that replaces Sink with `SINK_SERVER_DIR`; neither
 repository's module files are rewritten. The build output is

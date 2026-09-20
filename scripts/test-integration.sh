@@ -9,7 +9,7 @@ suite_go_flags=(-mod=readonly)
 if [[ -n "${SINK_GO_DIR:-}" ]]; then
   cp "${suite_dir}/go.mod" "${artifacts}/suite.go.mod"
   cp "${suite_dir}/go.sum" "${artifacts}/suite.go.sum"
-  go mod edit -modfile="${artifacts}/suite.go.mod" -replace="github.com/liran/sink-go=${SINK_GO_DIR}"
+  go mod edit -modfile="${artifacts}/suite.go.mod" -replace="github.com/batchstream/sink-go=${SINK_GO_DIR}"
   suite_go_flags+=("-modfile=${artifacts}/suite.go.mod")
 fi
 project="sink-qualification-$(date +%s)-$$"

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/liran/sink-production-suite/internal/reference"
+	"github.com/batchstream/sink-production-suite/internal/reference"
 )
 
 var BaseTime = time.Date(2026, time.August, 29, 8, 30, 0, 123000000, time.UTC)

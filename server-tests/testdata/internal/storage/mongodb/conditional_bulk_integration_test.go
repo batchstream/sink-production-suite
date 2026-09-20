@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/liran/sink/internal/storage"
-	"github.com/liran/sink/internal/storage/mongodb"
-	"github.com/liran/sink/internal/testuri"
+	"github.com/batchstream/sink/internal/storage"
+	"github.com/batchstream/sink/internal/storage/mongodb"
+	"github.com/batchstream/sink/internal/testuri"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/event"
 	"go.mongodb.org/mongo-driver/v2/mongo"

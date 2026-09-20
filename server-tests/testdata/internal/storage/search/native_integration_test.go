@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/liran/sink/internal/storage"
+	"github.com/batchstream/sink/internal/storage"
 )
 
 func TestNativeSearchQueriesMSearchAndScan(t *testing.T) {

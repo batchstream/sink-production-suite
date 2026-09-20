@@ -1,6 +1,6 @@
 # Sink production qualification suite
 
-This public repository qualifies [Sink](https://github.com/liran/sink) against
+This public repository qualifies [Sink](https://github.com/batchstream/sink) against
 a representative commerce-indexing workload using only synthetic fixtures,
 public dependencies, and disposable local infrastructure. It does not import
 proprietary application packages, use production data, require cloud
@@ -239,7 +239,7 @@ The public reusable workflow accepts an immutable Sink tag or commit:
 ```yaml
 jobs:
   qualify:
-    uses: liran/sink-production-suite/.github/workflows/release-qualification.yml@SUITE_COMMIT
+    uses: batchstream/sink-production-suite/.github/workflows/release-qualification.yml@SUITE_COMMIT
     with:
       suite_ref: SUITE_COMMIT
       sink_ref: v0.9.0
@@ -279,7 +279,7 @@ fixtures use flat role settings and shared `deploy/stores/` files passed through
 `--store-config`. All public clients connect through Gateway; Engine exposes only
 private forwarding and health. Deadlines belong to callers. Pair this suite revision with the Store-isolated
 Sink candidate; see Sink's
-[configuration migration guide](https://github.com/liran/sink/blob/main/docs/configuration-migration.md).
+[configuration migration guide](https://github.com/batchstream/sink/blob/main/docs/configuration-migration.md).
 
 The suite targets the current URI-only protocol and current configuration. Frozen
 old-release configurations and historical-binary regression gates have been
@@ -321,7 +321,7 @@ membership changes, sufficient/insufficient drain, stale answers, SERVFAIL durin
 shutdown, all Engines disappearing and recovery. Expected failure cases must
 expose failures and recover without hidden mutation replays. They complement
 Kubernetes measurements; see Sink's
-[rollout timing guide](https://github.com/liran/sink/blob/main/docs/rolling-upgrades.md).
+[rollout timing guide](https://github.com/batchstream/sink/blob/main/docs/rolling-upgrades.md).
 
 `make test-quorum` runs a separate disposable three-member MongoDB replica set
 and a bounded Engine. It elects a different primary during continuous writes,
@@ -338,7 +338,7 @@ the [upstream rseq compatibility issue](https://github.com/google/tcmalloc/issue
 Retain this allocator setting with capacity results. Database startup alone is
 insufficient: qualification requires successful reconciliation after load and
 faults, and cleanup failures fail the run. See Sink's
-[backend environment requirements](https://github.com/liran/sink/blob/main/docs/backend-environment.md).
+[backend environment requirements](https://github.com/batchstream/sink/blob/main/docs/backend-environment.md).
 
 During every storage fault, qualification also performs concurrent conditional
 merges, reads, deletes and independent Kafka acceptance through both Gateways for

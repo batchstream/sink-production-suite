@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	sink "github.com/liran/sink-go"
+	sink "github.com/batchstream/sink-go"
 	collector "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	logs "go.opentelemetry.io/proto/otlp/logs/v1"
 	"google.golang.org/protobuf/proto"

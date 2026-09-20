@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink-go/uri"
-	"github.com/liran/sink/internal/testuri"
+	"github.com/batchstream/sink-go/uri"
+	"github.com/batchstream/sink/internal/testuri"
 
-	sink "github.com/liran/sink/gen/sink"
-	"github.com/liran/sink/internal/config"
+	sink "github.com/batchstream/sink/gen/sink"
+	"github.com/batchstream/sink/internal/config"
 	"github.com/twmb/franz-go/pkg/kfake"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

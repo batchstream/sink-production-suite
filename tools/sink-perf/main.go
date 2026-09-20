@@ -25,10 +25,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/liran/sink-go/uri"
+	"github.com/batchstream/sink-go/uri"
 
-	sink "github.com/liran/sink/gen/sink"
-	"github.com/liran/sink/internal/protocol"
+	sink "github.com/batchstream/sink/gen/sink"
+	"github.com/batchstream/sink/internal/protocol"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/balancer/roundrobin"

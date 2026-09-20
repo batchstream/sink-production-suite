@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/liran/sink-production-suite/internal/testevents"
+	"github.com/batchstream/sink-production-suite/internal/testevents"
 )
 
 func main() {

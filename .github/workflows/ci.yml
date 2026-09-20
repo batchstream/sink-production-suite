@@ -39,7 +39,7 @@ jobs:
         env:
           CANDIDATE_REF: ${{ github.head_ref || github.ref_name }}
         run: |
-          remote=https://github.com/liran/sink.git
+          remote=https://github.com/batchstream/sink.git
           revision=$(git ls-remote --heads "$remote" "refs/heads/$CANDIDATE_REF" | awk '{print $1}')
           if [[ -z "$revision" ]]; then
             revision=$(git ls-remote --exit-code --heads "$remote" refs/heads/main | awk '{print $1}')
@@ -88,7 +88,7 @@ jobs:
       - name: Check out Sink server
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: liran/sink
+          repository: batchstream/sink
           path: sink-server
           ref: ${{ needs.resolve-server.outputs.revision }}
 

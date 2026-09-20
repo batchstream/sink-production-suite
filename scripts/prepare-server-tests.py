@@ -9,7 +9,7 @@ from pathlib import Path
 def prepare(server, sources, output):
     server = server.resolve(strict=True)
     sources = sources.resolve(strict=True)
-    if "module github.com/liran/sink\n" not in (server / "go.mod").read_text():
+    if "module github.com/batchstream/sink\n" not in (server / "go.mod").read_text():
         raise ValueError("--server must point to a Sink source checkout")
     replacements = {}
     for source in sorted(sources.rglob("*.go")):

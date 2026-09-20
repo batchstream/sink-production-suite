@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	sink "github.com/liran/sink-go"
+	sink "github.com/batchstream/sink-go"
 )
 
 func TestScanProjectionSurvivesConcurrentCount(t *testing.T) {

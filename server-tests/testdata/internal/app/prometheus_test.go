@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink/internal/config"
+	"github.com/batchstream/sink/internal/config"
 	"github.com/twmb/franz-go/pkg/kfake"
 )
 

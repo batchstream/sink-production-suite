@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink-production-suite/internal/historycheck"
+	"github.com/batchstream/sink-production-suite/internal/historycheck"
 )
 
 func TestReplaceConflictExhaustionIsRetryable(t *testing.T) {
