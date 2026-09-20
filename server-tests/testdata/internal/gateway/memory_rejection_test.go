@@ -36,9 +36,7 @@ func (s *rejectionEngine) Forward(req *forward.ForwardRequest, stream grpc.Serve
 			return err
 		}
 	}
-	used := &forward.Budget{}
-	final := &forward.ForwardResponse{Version: forwarding.Version, Store: req.GetStore(), Used: used, Complete: true}
-	return stream.Send(final)
+	return nil
 }
 
 func TestMemoryPressureRejectsBeforeForwarding(t *testing.T) {

@@ -5,14 +5,20 @@ import (
 	"fmt"
 	sink "github.com/liran/sink/gen/sink"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"io"
 	"sort"
 )
 
 type collectorStream[T any] struct {
 	grpc.ServerStream
-	ctx  context.Context
-	emit func(*T) error
+	ctx     context.Context
+	emit    func(*T) error
+	trailer metadata.MD
+}
+
+func (s *collectorStream[T]) SetTrailer(trailer metadata.MD) {
+	s.trailer = metadata.Join(s.trailer, trailer)
 }
 
 func (s *collectorStream[T]) Context() context.Context { return s.ctx }

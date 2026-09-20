@@ -308,9 +308,7 @@ func (e *controlledEngine) Forward(req *forward.ForwardRequest, stream grpc.Serv
 			return err
 		}
 	}
-	used := &forward.Budget{}
-	final := &forward.ForwardResponse{Version: forwarding.Version, Store: e.store, Used: used, Complete: true}
-	return stream.Send(final)
+	return nil
 }
 
 func TestLostMutationReplyIsNotReplayedAndKeepsOtherSuccess(t *testing.T) {
@@ -579,13 +577,13 @@ func TestEngineRejectsStaleProtocolAndMismatchedStoreBeforeWrites(t *testing.T) 
 		t.Run(test.name, func(t *testing.T) {
 			write := &sink.WriteRequest{CompletionMode: sink.CompletionMode_COMPLETION_MODE_WAIT_UNTIL_APPLIED, Operations: []*sink.WriteOperation{put(test.body, test.name, false)}}
 			body := &forward.ForwardRequest_Write{Write: write}
-			grant := &forward.Budget{Returns: 4096}
-			request := &forward.ForwardRequest{Version: test.version, Store: test.store, Grant: grant, Request: body}
+			request := &forward.ForwardRequest{Version: test.version, Store: test.store, Request: body}
 			output := &collectorStream[forward.ForwardResponse]{ctx: t.Context()}
 			var response *forward.ForwardResponse
 			output.emit = func(frame *forward.ForwardResponse) error { response = frame; return nil }
 			err := backend.Forward(request, output)
-			if err != nil || response.GetCode() != uint32(test.code) || !response.GetNotStarted() {
+			marker := output.trailer.Get(forwarding.NotStartedTrailer)
+			if status.Code(err) != test.code || response != nil || len(marker) != 1 || marker[0] != "true" {
 				t.Fatalf("request was not rejected before execution: %v, %v", response, err)
 			}
 			op := &sink.ReadOperation{Address: address("a", test.name)}
