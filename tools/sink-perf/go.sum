@@ -1,7 +1,7 @@
-github.com/batchstream/sink v0.19.1-0.20260920205447-5709a1cc5847 h1:HUxcQ9J8YSo3MZM9Ch/EoyMjxRrS2Dtxjb9zsnFOoIY=
-github.com/batchstream/sink v0.19.1-0.20260920205447-5709a1cc5847/go.mod h1:SS748MMKw4ev7U0N6gU/+H2Odv+1GDhSViGwtdo6QCM=
-github.com/batchstream/sink-go v0.10.1-0.20260920205313-e508153fce67 h1:pHj3wIXbVc8nuhvZnh6/+Zs4boYxUJB1U56snmpNLd8=
-github.com/batchstream/sink-go v0.10.1-0.20260920205313-e508153fce67/go.mod h1:pm/L1cLjXV6/3cGij6dmXX0tfJzlhrMJmpX5b6bxwzg=
+github.com/batchstream/sink v0.19.1-0.20260920221026-996534d5a287 h1:kxLOjpWH/xjQ694E91Fif7hs2+HKG2TItmtTlAhEAHQ=
+github.com/batchstream/sink v0.19.1-0.20260920221026-996534d5a287/go.mod h1:ltquC6p4I1nDGJDzPWEs3j9iGBdj4QdToe5I+h+kHG4=
+github.com/batchstream/sink-go v0.10.1-0.20260920213411-182e94733852 h1:VAkKeLTY0obY2M9whp93ij5pPh8ZsoZGhS8qYqwjLFc=
+github.com/batchstream/sink-go v0.10.1-0.20260920213411-182e94733852/go.mod h1:pm/L1cLjXV6/3cGij6dmXX0tfJzlhrMJmpX5b6bxwzg=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
@@ -24,8 +24,6 @@ github.com/klauspost/compress v1.19.2 h1:hMRETovs/pu/dVWN7zIT1PGG8t509MwT6bO7XSi
 github.com/klauspost/compress v1.19.2/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
-github.com/liran/sink-go v0.9.1-0.20260920094052-14251539240b h1:AUB9eXU8qNEJem1CkLGSCOsqSvlAxZjRr8hMvFPsQzs=
-github.com/liran/sink-go v0.9.1-0.20260920094052-14251539240b/go.mod h1:yzlNhufcKx518eeC969hAidHTM2ISB+hBag+VDuiPE4=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 h1:GFCKgmp0tecUJ0sJuv4pzYCqS9+RGSn52M3FUwPs+uo=
