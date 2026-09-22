@@ -30,11 +30,11 @@ func candidateConfigs(opts serverOptions, addresses []string) (string, string) {
 		fmt.Fprintf(&component, "request: {max_operations: %d}\nforwarding:\n%s\n", defaultInt(opts.maxOps, 1000), opts.routes)
 		return component.String(), ""
 	}
-	fmt.Fprintf(&component, "execution:\n  merge:\n    max_attempts: 50\n    lua: {max_instructions: %d}\n", defaultInt(opts.luaInstructions, 1000000))
+	fmt.Fprintf(&component, "execution:\n  store_max_concurrent: %d\n  merge:\n    max_attempts: 50\n    lua: {max_instructions: %d}\n", defaultInt(opts.storeConcurrent, 64), defaultInt(opts.luaInstructions, 1000000))
 	if mode == "engine" {
 		fmt.Fprintf(&component, "batching:\n  max_operations: %d\n  max_wait: %dms\n  queue: {max_operations: %d}\n", defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
 	} else {
-		fmt.Fprintf(&component, "consumer:\n  group_id: %s-workers\n  retry: {backoff: 10ms, max_backoff: 100ms}\n", opts.topic)
+		fmt.Fprintf(&component, "consumer:\n  group_id: %s-workers\n  retry: {max_attempts: %d, backoff: 10ms, max_backoff: 100ms}\n", opts.topic, defaultInt(opts.workerAttempts, 10))
 	}
 	store := opts.store
 	if store == "" {

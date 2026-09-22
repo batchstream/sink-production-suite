@@ -85,7 +85,7 @@ go run ./cmd/check-test-events --file "${SINK_CONFORMANCE_ARTIFACTS}/client-test
   --require 'TestDialBalancesWritesAndFollowsEndpointChanges,TestDialDiscoversDNSScaleChangesWithHealthyConnections/default,TestDialDiscoversDNSScaleChangesWithHealthyConnections/one-second'
 # Each public test now starts both Gateway and Engine; reserve time for both
 # process lifecycles while preserving the per-request fault deadlines.
-go test "${suite_go_flags[@]}" -race -tags=integration ./conformance -count=1 -timeout="${SINK_CONFORMANCE_TEST_TIMEOUT:-30m}" -json | tee "${SINK_CONFORMANCE_ARTIFACTS}/tests.jsonl"
+go test "${suite_go_flags[@]}" -race -tags=integration ./conformance -count=1 -timeout="${SINK_CONFORMANCE_TEST_TIMEOUT:-40m}" -json | tee "${SINK_CONFORMANCE_ARTIFACTS}/tests.jsonl"
 required_tests='TestStartupRejectsInsufficientMemoryBeforeDependencies,TestProcessLoggingSurvivesCollectorOutage/elasticsearch,TestProcessLoggingSurvivesCollectorOutage/opensearch,TestHotKeyMergeAmplification,TestAppliedDoesNotInheritVisibleRefresh,TestCompletedDocumentReleasedBeforeSiblingRead,TestSuccessfulSiblingNotReplayedDuringConflict,TestVisibleDatasetsCompleteIndependently,TestReadStreamsUsePerResultLimits,TestFormattedJSONBulkFraming,TestReplaceRechecksExistenceAfterConflict,TestQueuedCancellationDoesNotPoisonFollowingWrites,TestOperationStateMachine,TestSyncCrashBoundaries,TestLostBackendResponseDoesNotReplayMutation,TestCancellationAfterCommitRetainsState,TestAcceptedMutationCrashBoundaries,TestConcurrentHistories,TestSlowStoreDoesNotBlockIndependentWork,TestWorkerRetainsStorageFailures'
 required_tests+=',TestNativeRejectsIncompleteBackendResults,TestNativeScanCancellationReleasesCursorAndAdmission,TestNativeExecuteLostResponseDoesNotReplay,TestReturnedWriteCommitAndConflictBoundaries,TestReturnedWriteStreamsUsePerResultLimits,TestNativeResponseLimitsFailWithoutTruncation,TestNativeWireValidationBeforeExecution'
 required_tests+=',TestNativeScanDeadlinesReleaseResources,TestNativeScanResumesAfterServerExit'
@@ -96,7 +96,9 @@ required_tests+=',TestRequestGateDiscardPreventsLateForwarding'
 required_tests+=',TestPublishingSurvivesSynchronousSaturation,TestSynchronousWritesSurvivePublisherSaturation,TestSynchronousMergesProcessCollectedWorkingSets'
 required_tests+=',TestLuaBudgetFailuresPreserveStateAndSiblings,TestManagedQueriesCannotMutateDocuments,TestManagedQueryEndpointRecovery,TestQueryLookaheadDoesNotConsumeDocumentBudget'
 required_tests+=',TestDirectBurstsProgressAcrossStores,TestDirectCancellationReleasesBackend,TestReturnedPutsKeepCollectedBatch,TestScanProjectionSurvivesConcurrentCount'
+required_tests+=',TestStoreBackpressureKeepsSharedAdmissionBounded,TestStoreBackpressureReplicasConvergeAndRecover,TestStoreBackpressureWorkerRetainsBacklogAndRecovers'
 for backend in elasticsearch opensearch; do
+  required_tests+=",TestStoreBackpressureKeepsSharedAdmissionBounded/${backend},TestStoreBackpressureWorkerRetainsBacklogAndRecovers/${backend},TestStoreBackpressureReplicasConvergeAndRecover/${backend}/1,TestStoreBackpressureReplicasConvergeAndRecover/${backend}/4"
   for operation in insert remove sort unpack move concat pack packsize string-unpack pattern unicode cumulative-helper; do
     required_tests+=",TestLuaBudgetFailuresPreserveStateAndSiblings/${backend}/${operation}"
   done

@@ -51,8 +51,19 @@ func testMemoryDirectBursts(t *testing.T) {
 			for range 8 {
 				burst = append(burst, countAsync(t.Context(), server.client, req))
 			}
+			completed, rejected := 0, 0
 			for _, call := range burst {
-				counted(t, call)
+				result := <-call
+				if status.Code(result.err) == codes.ResourceExhausted {
+					rejected++
+				} else if result.err == nil && result.response.Count == 1 && !result.response.Estimated {
+					completed++
+				} else {
+					t.Fatalf("independent Count: %+v %v", result.response, result.err)
+				}
+			}
+			if completed == 0 {
+				t.Fatal("independent work failed despite the warmed Store window")
 			}
 			used := memoryMetricTotal(server.metricSnapshot(t), "sink_memory_used_bytes")
 			if used <= 0 {
@@ -63,6 +74,9 @@ func testMemoryDirectBursts(t *testing.T) {
 			counted(t, countAsync(t.Context(), server.client, healthy))
 			gate.open()
 			counted(t, busy)
+			for range rejected {
+				counted(t, countAsync(t.Context(), server.client, req))
+			}
 			server.waitIdle(t)
 		})
 	}
@@ -131,9 +145,8 @@ func testMemoryStoreSaturation(t *testing.T, rounds int) {
 					operation := put(t, address, payload, sink.WriteUpsert)
 					calls = append(calls, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, operation))
 				}
-				for _, call := range calls {
-					applied(t, call, 1)
-				}
+				// The slow Store may retain these writes when its window shrinks.
+				// Independent Store progress must not depend on draining that backlog.
 				for sample := range 8 {
 					call, stop := context.WithTimeout(t.Context(), time.Second)
 					operation := put(t, healthy, fmt.Sprintf(`{"counter":%d}`, sample), sink.WriteUpsert)
@@ -144,8 +157,11 @@ func testMemoryStoreSaturation(t *testing.T, rounds int) {
 				if result := <-busy; status.Code(result.err) != codes.Canceled {
 					t.Fatalf("held request cancellation: %+v", result)
 				}
-				server.waitIdle(t)
 				gate.open()
+				for _, call := range calls {
+					applied(t, call, 1)
+				}
+				server.waitIdle(t)
 				for _, address := range written {
 					readRequest := sink.ReadRequest{
 						Addresses: []sink.Address{address},

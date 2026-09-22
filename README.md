@@ -28,6 +28,9 @@ Kafka progress and projected Scan retries. They observe `sink_memory_*` ownershi
 and waiting gauges; cumulative counters and configured capacity are not treated
 as leaked memory. These are active replacement scenarios, not skipped tests.
 
+The [adaptive Store backpressure qualification](docs/store-backpressure.md) adds
+real-process congestion, recovery, bounded queue and Kafka offset gates.
+
 The suite verifies:
 
 1. Representative item and offer merge programs match the public Go reference

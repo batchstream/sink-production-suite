@@ -7,6 +7,7 @@ import (
 	"time"
 
 	sink "github.com/batchstream/sink/gen/sink"
+	"github.com/batchstream/sink/internal/backpressure"
 	"github.com/batchstream/sink/internal/merge"
 	"github.com/batchstream/sink/internal/protocol"
 	"github.com/batchstream/sink/internal/service"
@@ -18,7 +19,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-func nativeRPCFixture(t *testing.T, silent bool) (sink.SinkClient, *nativeFixtureStorage) {
+func nativeRPCFixture(t *testing.T, silent bool, admission ...*backpressure.Controller) (sink.SinkClient, *nativeFixtureStorage) {
 	t.Helper()
 	backend := &nativeFixtureStorage{Store: memory.New(), stopped: make(chan struct{}), started: make(chan struct{}), silent: silent}
 	luaOptions := merge.LuaOptions{}
@@ -27,6 +28,9 @@ func nativeRPCFixture(t *testing.T, silent bool) (sink.SinkClient, *nativeFixtur
 		t.Fatal(err)
 	}
 	options := service.Options{BoundStore: "primary", Storage: backend, Lua: lua, MaxReadBytes: 4096}
+	if len(admission) > 0 {
+		options.Admission = admission[0]
+	}
 	core, err := service.New(options)
 	if err != nil {
 		t.Fatal(err)
