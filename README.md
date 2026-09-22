@@ -6,134 +6,38 @@ public dependencies, and disposable local infrastructure. It does not import
 proprietary application packages, use production data, require cloud
 credentials, or connect to an external Kubernetes cluster.
 
-## Release gates
+## Qualification gates
 
-Production incidents from Sink PRs 37 through 41 are now executable public-API
-contracts. The [incident matrix and reliability contract](docs/reliability-contract.md)
-explain each missed invariant, its deterministic oracle, configuration/model
-matrix and remaining qualification gaps. Integration, release and sustained runs
-start with `make test-conformance`. Historical pre-fix evidence is documentation;
-current CI does not run historical binaries or a regression-sensitivity target.
+The [reliability contract](docs/reliability-contract.md) defines the public API
+invariants, fault-injection oracles and remaining qualification gaps. Tests use
+the candidate's current URI protocol and configuration. They cover ordered
+Put/Merge folding, independent caller completion, JSON/BSON fidelity, native
+queries and Scan checkpoints, process memory watermarks, and at-least-once Kafka
+delivery. [Store backpressure qualification](docs/store-backpressure.md) covers
+real-process congestion, bounded queues, offset settlement and recovery.
 
-The [September 16 release coverage review](docs/current-release-review-2026-09-16.md)
-maps the latest Scan, admission, Lua and configuration changes to required tests,
-including the matching Go SDK. Historical performance-regression proofs are
-retained as review context, not current CI jobs.
+| Command | Coverage |
+| --- | --- |
+| `make test-coverage` | Infrastructure-free reference models, fuzz seeds, evidence validation, race checks and coverage floors |
+| `make test-candidate` | Candidate unit tests plus suite-owned transport and assembly tests, with race checks and combined coverage floors |
+| `make test-server-integration` | Disposable MongoDB, Elasticsearch and OpenSearch adapter tests, plus bounded service working sets |
+| `make test-conformance` | Public API models and injected failures through actual candidate processes and search backends, plus SDK contract checks |
+| `make test-isolated-quickstart` | Matching SDK against Gateway, Engine, Worker, MongoDB and Kafka |
+| `make test-production` | Candidate/conformance gates, seven-Store workloads, a six-minute fault workload, recovery, DLQ replay and MongoDB quorum checks |
+| `make test-reliability` | Candidate/conformance gates followed by a two-hour fault workload with higher concurrency and repeated disruptions |
 
-Admission scenarios negotiate the candidate's `memory` configuration support.
-Released servers retain the count/queue assertions. Candidates with demand-based
-admission instead prove small-request concurrency, real byte exhaustion without
-request access to the completion reserve, cancellation cleanup, Store isolation,
-Kafka progress and projected Scan retries. They observe `sink_memory_*` ownership
-and waiting gauges; cumulative counters and configured capacity are not treated
-as leaked memory. These are active replacement scenarios, not skipped tests.
+Named test events reject missing, skipped and unfinished tests. The suite retains
+exact suite/server revisions, tracked diffs, logs, configurations and fault
+observations. Ordinary `go test ./...` requires no external infrastructure;
+`SINK_SERVER_DIR=/path/to/sink make test-candidate` also runs without Docker.
 
-The [adaptive Store backpressure qualification](docs/store-backpressure.md) adds
-real-process congestion, recovery, bounded queue and Kafka offset gates.
-
-The suite verifies:
-
-1. Representative item and offer merge programs match the public Go reference
-   model, including history limits, deduplication, timestamps, large integers,
-   and replay behavior.
-2. The same programs produce equal documents through the public Go client,
-   multiple Sink server processes, and real storage backends, using explicit
-   JSON documents for search and BSON documents for MongoDB.
-3. Concurrent merges preserve every successful update while exercising real
-   search-engine revision conflicts.
-4. Store-owned asynchronous routing works through two independent Kafka
-   clusters without changing result order.
-5. Stores without Kafka remain available synchronously and reject asynchronous
-   requests as retryable unavailable results without publishing anything.
-6. MongoDB, Elasticsearch, and OpenSearch pass create, duplicate-create,
-   concurrent merge, asynchronous write/delete, and synchronous delete checks,
-   including distinct `json`/`bson` identity tags and native datetime types.
-7. Accepted Kafka mutations survive worker and broker restarts and retain
-   same-record ordering.
-8. Active operations recover from a worker SIGKILL, a 45-second OpenSearch outage,
-   and a Kafka restart using the product worker retry default. Healthy stores
-   remain ready while the affected dependency fails readiness.
-9. A representative concurrent load completes without failed operations or
-   exhausted merge-conflict retries.
-10. Every consumer group drains to zero lag and dead-letter topics remain empty
-    for ordinary traffic and temporary outages.
-11. The public API rejects oversized asynchronous mutations permanently, returns
-    every repeated read key across stores in separate bounded frames, and rejects
-    expanded Lua aliases before changing stored data. Both collected results and
-    callback delivery complete without retries when total output exceeds the
-    message limit; callback delivery returns a nil result slice.
-12. An intentional permanent CREATE conflict does not suppress the next valid
-    update to the same key. The final recovery scenario inspects exactly one DLQ
-    record, repairs the conflict, replays it with the Sink CLI, reconciles the
-    stored business result, and verifies the original DLQ position is preserved.
-13. Applied/visible completion, independent datasets, per-result limits, real
-    revision conflicts, queued cancellation, formatted JSON and bounded hot-key
-    backend work satisfy the incident regressions with race detection.
-14. An independent Go operation model checks mixed Create/Upsert/Replace/Merge,
-    permanent failures, reordered/duplicate Reads and duplicate Deletes after
-    every RPC across batching configurations and all seven backend stores.
-15. PR #44's native Execute, Query, Count and Scan APIs run through the public
-    Dataset API on all seven stores: exact pagination, projections, count
-    strategies, native errors, BSON preservation and canceled scans.
-16. Damaged search pages and approximate totals fail without retries; canceled
-    and timed-out Scan requests release backend resources and admission slots. Lost native
-    mutation acknowledgements do not replay increments. Oversized responses and
-    invalid raw RPCs fail before exposing partial results or reaching storage.
-17. Returned writes report each operation's committed value and revision through
-    real conflicts and concurrent server replicas. Response budgets belong to
-    each original RPC and reject an oversized candidate before its commit.
-18. Paged Scan resumes from the last processed cursor after graceful server exit
-    or SIGKILL, including a lost page response. Cursors have no expiry and hold no
-    backend session between pages; scans observe live data rather than a snapshot.
-19. Ascending and descending scans continue through record deletion, insertion
-    before/after a checkpoint and updates to unseen records on all seven stores.
-    Alternating server replicas, changing page sizes, retrying a saved checkpoint,
-    cancellation and cursor corruption preserve the expected remaining records.
-20. Missing timeout/shard completion evidence and inconsistent shard counts fail
-    Query, Count and Scan. Streamed documents may precede the terminal error,
-    but failed pages never advertise continuation. MongoDB Query rejects
-    partial shard results; unordered native writes preserve successful siblings
-    while returning the original native error for a failed member.
-21. A held synchronous storage request cannot block Kafka Write/Delete
-    acceptance for the same store, with default and one-operation batches. A paused
-    Kafka broker cannot consume synchronous write capacity; excess publishes
-    fail before enqueue, and accepted records drain in order after recovery.
-22. Eight independent returned merges coalesce into one execution and stream
-    large snapshots or outputs through bounded backend requests, preserving
-    each caller's committed document and the per-result size limit.
-23. The pinned Go SDK exercises round-robin balancing and real loopback DNS
-    changes with healthy connections, default and custom refresh intervals,
-    scale-in and temporary DNS failure. Required test events prevent an older
-    SDK with no matching tests from passing the gate.
-
-Release qualification uses a bounded six-minute active-fault workload with a
-three-minute deadline for each business cycle to reconcile. The fixture removes
-its former `max_retry_attempts: 30` override and exercises Sink's default retry
-rounds. Every normal-workload DLQ must remain empty before the deliberate
-permanent-error scenario runs. A successful replay does not delete DLQ records.
-
-The nightly/manual two-hour workflow uses this repository's same orchestration
-and assertions at higher concurrency. Each run retains exact suite/server
-revisions, resolved Compose configuration, test logs, fault timestamps, container
-resource samples, Prometheus samples, and DLQ inspect/replay reports for 14 days.
-The standalone script prints its local evidence directory even on failure.
-The two-hour run is separate from the release gate; a passing short run does not
-imply a completed long run or multi-node production certification.
-
-## Changes since v0.12.1
-
-The [post-release coverage matrix](docs/post-release-review-2026-09-14.md) maps
-all changes through the September 14 candidate to required regression evidence.
-Production and sustained qualification now run the candidate's unit tests plus suite-owned component
-race tests, real MongoDB/Elasticsearch/OpenSearch storage suites and bounded
-service integration in addition to the public API suite. Named test events reject
-missing or skipped regressions. New public scenarios verify Lua budget isolation,
-managed query safety/failover, lookahead byte budgets and BSON fidelity through
-returned writes, Kafka and a second server. Historical broken-candidate evidence is retained in the review documents; it is
-not an active compatibility gate for the current protocol.
-
-`SINK_SERVER_DIR=/path/to/sink make test-candidate` runs the candidate race gate
-without Docker. Ordinary `go test ./...` remains independent of infrastructure.
+Release workloads use the product Worker retry defaults. Normal traffic and
+temporary outages must leave no DLQ records; a separate permanent CREATE conflict
+verifies DLQ inspection, repair and replay with the original source position.
+Successful replay does not delete DLQ records. Every business cycle reconciles
+stored state and every consumer group must drain. The two-hour run is reserved
+for scheduled or explicitly requested qualification; a short run does not prove
+sustained behavior or multi-node production reliability.
 
 ## Infrastructure
 
@@ -245,7 +149,7 @@ jobs:
     uses: batchstream/sink-production-suite/.github/workflows/release-qualification.yml@SUITE_COMMIT
     with:
       suite_ref: SUITE_COMMIT
-      sink_ref: v0.9.0
+      sink_ref: SINK_COMMIT
 ```
 
 It runs race tests, lint, bounded stateful fuzzing, the seven-store backend
@@ -280,13 +184,9 @@ The harness and `deploy/engines/`, `deploy/workers/`, and `deploy/gateway.yaml`
 use the Gateway / single-Store Engine / single-Store Worker architecture. Runtime
 fixtures use flat role settings and shared `deploy/stores/` files passed through
 `--store-config`. All public clients connect through Gateway; Engine exposes only
-private forwarding and health. Deadlines belong to callers. Pair this suite revision with the Store-isolated
-Sink candidate; see Sink's
-[configuration migration guide](https://github.com/batchstream/sink/blob/main/docs/configuration-migration.md).
-
-The suite targets the current URI-only protocol and current configuration. Frozen
-old-release configurations and historical-binary regression gates have been
-removed. Behavioral regression tests continue to run against the candidate build.
+private forwarding and health. Deadlines belong to callers. See Sink's
+[configuration reference](https://github.com/batchstream/sink/blob/main/docs/configuration.md).
+Behavioral regression tests run against the candidate build.
 
 ## Store-isolated architecture
 
@@ -384,21 +284,13 @@ events on graceful exit. Exporter failures remain visible on stderr even when
 ordinary console logging is disabled. Candidate component gates additionally require
 both OTLP transports, TLS refusal to downgrade, bounded queue loss and shutdown.
 
-The process test detected an actual diagnostic gap: memory-managed Gateway
-responses reached the outer logging interceptor inside `protocol.ManagedMessage`.
-Without unwrapping for observation, a failed Create was reported at debug level
-with zero operations/failures. The server regression requires the original
-managed response to be returned unchanged while recording its underlying failure.
-The standalone process assertion failed on Sink `49d87e2` and passed after the
-matching fix; unlike old historical-binary gates, this is a current test oracle.
-
 ## Server test ownership
 
 Sink retains component unit tests, input fuzzers and unit microbenchmarks. This
 repository owns server backend and transport integrations, application assembly
-tests, stateful scenario fuzzing, cross-component benchmarks, allocator
+tests, stateful scenario fuzzing, cross-component benchmarks, capacity
 experiments and performance tooling. See [the runner and ownership
 rules](server-tests/README.md) and [integration benchmark commands](docs/server-benchmarks.md).
 The reusable `server-qualification.yml` workflow is required by both repositories;
-Sink pins its workflow and source revision together. Migration preserves the
-existing combined coverage floors and named test requirements.
+Sink pins its workflow and source revision together. Both repositories enforce
+combined coverage floors and named test requirements.

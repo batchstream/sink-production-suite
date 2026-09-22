@@ -1,20 +1,13 @@
-# Reliability contract and incident regressions
+# Reliability contract and regression coverage
 
-Sink server PRs 37, 38, 40 and 41 exposed gaps in qualification. PR 39 only
-documented the write flow. Passing business Lua examples, eventual final-state
-checks and long-running traffic did not establish measured backend work,
-independent request completion or per-caller resource ownership.
+Qualification checks measured backend work, independent request completion,
+resource ownership and persisted business state. Controlled storage gates,
+slow/disabled search refresh and independent operation models expose failures
+that eventual reconciliation alone cannot detect.
 
-The old fixtures set search refresh to 100ms, frequently requested visible
-completion, and allowed minute-scale reconciliation. That combination concealed
-archive indexes with slow/disabled refresh and latency amplification between
-otherwise independent operations. The model fuzzers compared business Lua with
-business Go models; they never exercised Sink's batching state machine. Server
-PR CI did not run the public suite; release qualification ran only afterwards.
+## Executable contract matrix
 
-## Executable incident matrix
-
-The native-access extension also requires `TestReturnedChainReleasesIndependentPut`
+The suite requires `TestReturnedChainReleasesIndependentPut`
 against both search engines: a held Merge snapshot must not prevent an independent
 Put from committing or releasing its key. Server-side real-Mongo tests also
 cover atomic native revision updates and cursor cleanup after cancellation.
@@ -27,24 +20,24 @@ gate is released. `TestRequestGateDiscardPreventsLateForwarding` keeps the clien
 connection alive and requires zero backend requests, then verifies normal traffic
 can resume. Both synchronous and Kafka crash tests use this boundary.
 
-| Incident | Public contract and oracle | Test |
+| Behavior | Public contract and oracle | Test |
 | --- | --- | --- |
-| [PR 37](https://github.com/batchstream/sink/pull/37): hot-key work amplification | 64 ordered merges use one snapshot and one conditional commit, share a committed revision, and persist counter=64 | `TestHotKeyMergeAmplification` |
-| [PR 38](https://github.com/batchstream/sink/pull/38): archive inherits visible wait | Applied Write and Delete finish with archive refresh disabled while unrelated visible operations retain actual search visibility | `TestAppliedDoesNotInheritVisibleRefresh` |
-| [PR 40](https://github.com/batchstream/sink/pull/40): coalesced byte budgets | Independent Read RPCs and duplicate addresses each return their documents in separate bounded frames, even when their combined size exceeds the message limit; oversized individual results are rejected | `TestReadStreamsUsePerResultLimits` |
-| PR 40: formatted JSON damages NDJSON framing | Pretty-printed JSON, escaped newlines, quotes and Unicode persist correctly alongside another bulk item | `TestFormattedJSONBulkFraming` |
-| PR 40: Replace conflict changes existence semantics | A real concurrent revision change is retried; a concurrent delete is not resurrected; an acknowledged sibling is written once | `TestReplaceRechecksExistenceAfterConflict` |
+| Hot-key folding | 64 ordered merges use one snapshot and one conditional commit and persist counter=64 | `TestHotKeyMergeAmplification` |
+| Applied/visible completion | Applied Write and Delete finish with archive refresh disabled while unrelated visible operations retain actual search visibility | `TestAppliedDoesNotInheritVisibleRefresh` |
+| Per-result response limits | Independent Read RPCs and duplicate addresses each return their documents in separate bounded frames, even when their combined size exceeds the message limit; oversized individual results are rejected | `TestReadStreamsUsePerResultLimits` |
+| Bulk JSON framing | Pretty-printed JSON, escaped newlines, quotes and Unicode persist correctly alongside another bulk item | `TestFormattedJSONBulkFraming` |
+| Replace preconditions | A real concurrent revision change is retried; a concurrent delete is not resurrected; an acknowledged sibling is written once | `TestReplaceRechecksExistenceAfterConflict` |
 | Final Replace conflict classification | Three real competing writes exhaust Replace retries; the public result remains an unresolved retryable conflict and preserves the competing value | `TestReplaceConflictExhaustionIsRetryable` |
-| [PR 41](https://github.com/batchstream/sink/pull/41): completed key held by unrelated read | A subsequent write to an already committed key completes while the original multi-operation RPC remains blocked on another key's read | `TestCompletedDocumentReleasedBeforeSiblingRead` |
-| PR 41: completed RPC held by sibling conflict retry | A real conflicting writer changes the snapshot; successful RPC returns before retry is released, is never replayed, and retry recomputes the new value | `TestSuccessfulSiblingNotReplayedDuringConflict` |
-| PR 41: independent dataset inherits refresh wait | Fast visible dataset is searchable before manually refreshing the slow dataset; slow visible RPC stays pending until refresh | `TestVisibleDatasetsCompleteIndependently` |
+| Completed record release | A subsequent write to an already committed key completes while the original multi-operation RPC remains blocked on another key's read | `TestCompletedDocumentReleasedBeforeSiblingRead` |
+| Independent RPC completion | A real conflicting writer changes the snapshot; successful RPC returns before retry is released, is never replayed, and retry recomputes the new value | `TestSuccessfulSiblingNotReplayedDuringConflict` |
+| Independent dataset visibility | Fast visible dataset is searchable before manually refreshing the slow dataset; slow visible RPC stays pending until refresh | `TestVisibleDatasetsCompleteIndependently` |
 | Cancellation and admission regression class | Repeated cancellation while queued leaves no cancelled writes and does not poison following successful writes | `TestQueuedCancellationDoesNotPoisonFollowingWrites` |
 | Process crashes at commit/acknowledgement boundaries | Pre-commit work stays absent; committed state survives restart; an explicitly idempotent retry applies once | `TestSyncCrashBoundaries` |
 | Lost backend response after a non-idempotent commit | No false acknowledgement or internal replay; persisted counter and backend attempts stay one | `TestLostBackendResponseDoesNotReplayMutation` |
 | Cancellation after commit | Committed state remains and record execution capacity is released | `TestCancellationAfterCommitRetainsState` |
 | Worker crashes around backend/offset commits | Unresolved records replay, committed records do not replay, following records drain and ordinary DLQ stays empty | `TestAcceptedMutationCrashBoundaries` |
 | Concurrent operations | Three clients through two processes have a legal sequential explanation preserving real-time precedence | `TestConcurrentHistories` |
-| Slow store saturation | Excess work is rejected, healthy-store writes meet individual deadlines and cancellation releases reservations without applying pre-commit work | `TestSlowStoreDoesNotBlockIndependentWork` |
+| Slow store saturation | Healthy-store writes meet individual deadlines while another Store holds a backend request and pending writes; cancellation releases the held request and the backlog drains | `TestSlowStoreDoesNotBlockIndependentWork` |
 | Storage failure misclassified as a bad record | Real Kafka records survive whole-request failures, per-item errors, malformed responses and real index write blocks; only a confirmed invalid document reaches DLQ | `TestWorkerRetainsStorageFailures` |
 
 The conformance harness starts the candidate executable with its public YAML
@@ -73,8 +66,8 @@ regression must fail without the shutdown deadline fix.
 missing-document creation, Lua failure after local mutation, Read and duplicate
 Delete using ordinary Go values. It covers all 25 pairs of write operations from
 both absent and present states, then generates 256 seeded operations on three keys.
-After every RPC it checks result order, exact permanent error classes, revision
-presence and persisted state through reordered and repeated reads. It checks
+After every RPC it checks result order, exact permanent error classes and
+persisted state through reordered and repeated reads. It checks
 that failed operations leave state intact and later operations still execute.
 
 The same model runs through:
@@ -105,7 +98,7 @@ creates, stale reads, failed writes changing state and resurrection after Delete
 legal overlapping histories must pass.
 
 Exhausted revision conflicts use `WritePreconditionFailed` with a retryable
-`FailureConflict` cause and no revision. The history reader distinguishes this
+`FailureConflict` cause. The history reader distinguishes this
 unresolved outcome from a non-retryable `FailurePreconditionFailed` condition
 mismatch. A deterministic test invalidates all three Replace snapshots through
 real backend writes, keeping the addressed record present throughout.
@@ -120,12 +113,12 @@ establish multi-record atomicity or check arbitrary uncertain, unbounded or asyn
 histories. Automatic shrinking and coverage-guided server-process fuzzing remain
 future work.
 
-Saturation tests hold two real executions, fill an eight-call queue and require
-all 56 excess calls to receive overload responses before cancellation. Eight
-healthy-store writes must each complete within one second during saturation.
-After cancellation, all execution and queue reservations return to zero and all
-66 pre-commit/rejected documents remain absent. Quiescent Go heap growth is
-limited to 64 MiB over baseline and goroutine growth to 80 for this fixture.
+Saturation tests hold a real Count request and submit sixteen writes to its
+Store. Eight writes to an independent Store must each complete within one second
+before the held request is canceled or the slow Store's backlog is drained.
+After cancellation and backend recovery, every submitted write must be readable
+and execution/queue gauges must drain. Quiescent Go heap growth is limited to
+64 MiB over baseline and goroutine growth to 80 for this fixture.
 `SINK_SATURATION_ROUNDS` defaults to six per backend; nightly runs use 64. These
 sampled thresholds are not strict Lua heap quotas or universal RSS guarantees.
 
@@ -151,10 +144,10 @@ uncertainty from explicit document rejection, and reject invalid bulk-error
 indexes. This matrix qualifies Sink's reactions to storage failures; it does not
 qualify the database's own durability or recovery implementation.
 
-## Native access qualification (Sink PR #44)
+## Native access qualification
 
 The suite pins its paired SDK in `go.mod` and exercises public RPCs
-against the candidate executable. The new contracts are required by the same
+against the candidate executable. These contracts are required by the same
 event checker as the incident regressions; missing and skipped tests fail.
 
 | Contract | Independent oracle |
@@ -166,7 +159,7 @@ event checker as the incident regressions; missing and skipped tests fail.
 | Incomplete backend results | A proxy damages real pages with timeout, shard failure, missing timeout/shard metadata, inconsistent shard counts, missing hits, malformed JSON or approximate totals. Query/Count/Scan fail without exposing documents, a total or a continuation cursor. No automatic retry is allowed and healthy requests recover. |
 | Native mutations | Execute changes a real document and retains native error payloads/status. Losing the actual increment response leaves exactly one increment and one backend attempt. |
 | Validation and limits | Raw gRPC bypasses SDK validation for managed query parameters, duplicate sorting, oversized pages/batches and asynchronous returned writes. Backend traces must contain no data requests. Oversized native responses fail without truncated output. |
-| Returned documents | Mixed returned/non-returned chains and concurrent writes through two servers return their own values and distinct revisions. Real CAS conflicts recompute against the competing writer. Failed Create returns no document. Multiple returned documents stream even when their combined size exceeds the message limit; an oversized individual document is rejected before commit. Coalesced RPCs retain independent results. |
+| Returned documents | Mixed returned/non-returned chains and concurrent writes through two servers return their own committed values. Real CAS conflicts recompute against the competing writer. Failed Create returns no document. Multiple returned documents stream even when their combined size exceeds the message limit; an oversized individual document is rejected before commit. Coalesced RPCs retain independent results. |
 | Native MongoDB revision protection | Native writes change the revision observed through a second server. Unknown/destructive commands are rejected before execution; supported commands still retain native database errors. The server's MongoDB integration tests additionally hold a Merge snapshot while another service instance commits operator, replacement, or pipeline writes, then require a fresh snapshot and the combined committed value. |
 | Live Scan checkpoints | With both sort directions on all seven stores, delete the next unseen record, update another unseen record and insert on each side of the checkpoint. Alternate server replicas and page sizes, then replay the original checkpoint. An independent expected sequence detects skips, repeats and stale documents. Cancellation and a corrupt token must not damage the valid token. |
 | Cross-cluster completeness | A proxy adds a skipped remote cluster to a real successful response. Query/Count/Scan must reject it even when every reported shard succeeded. This validates response handling, not a real cross-cluster network partition. |
@@ -206,12 +199,6 @@ SINK_SERVER_DIR=/path/to/sink make test-conformance
 SINK_SERVER_DIR=/path/to/sink make test-production
 ```
 
-Historical sensitivity experiments proved selected incident assertions against
-pre-fix commits, but that runner was removed with the legacy protocol fixtures.
-There is no current `test-regression-sensitivity` target or historical-binary
-CI job. Current gates exercise the candidate with controlled faults and explicit
-oracles; the historical proof is not evidence of a newly changed test's sensitivity.
-
 The conformance runner builds both server and tests with the race detector,
 uses dynamically allocated loopback backend ports and its own Compose project,
 and retains JSON test events, HTTP request traces, exact revisions, local tracked
@@ -248,7 +235,7 @@ must extend the matrix. Keep new minimized failure sequences as permanent tests.
 
 SQLite's [testing approach](https://sqlite.org/testing.html) combines independent
 harnesses, anomaly tests, fuzzing, optimization comparisons and test sensitivity.
-These changes adopt those practices for the incidents above; they do not certify
+The suite applies those practices to the contracts above; they do not certify
 SQLite-level reliability. Remaining Sink-specific gaps include every individual
 Kafka acknowledgement boundary, generated malformed protocol responses, arbitrary
 network partitions, strict memory isolation for arbitrary scripts and broader
