@@ -1,0 +1,80 @@
+//go:build integration
+
+package conformance_test
+
+import (
+	"context"
+	"fmt"
+	sink "github.com/batchstream/sink-go"
+	"github.com/batchstream/sink-production-suite/internal/testuri"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"sync"
+	"testing"
+	"time"
+)
+
+// Existing fault schedules require spare execution slots before holding a call.
+// Establish that capacity with real public Count traffic on a disposable index,
+// never by altering controller state or disabling admission. Backpressure tests
+// opt into coldStore to exercise untrained processes and startup staggering.
+func warmStoreTraffic(t *testing.T, server *candidate, opts serverOptions) {
+	t.Helper()
+	index := indexFor(t, opts.backend, "-1")
+	store := opts.store
+	if store == "" {
+		store = "primary"
+	}
+	command := sink.Command{URI: testuri.Resource(store, []string{index}), Method: "POST", Path: "/_search", ContentType: "application/json", Payload: []byte(`{"query":{"match_all":{}}}`)}
+	request := sink.CountRequest{Command: command}
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+	stop := make(chan struct{})
+	var workers sync.WaitGroup
+	defer func() { close(stop); workers.Wait() }()
+	failures := make(chan error, 1)
+	for range 32 {
+		workers.Go(func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-stop:
+					return
+				default:
+				}
+				response, err := server.client.Count(ctx, request)
+				if err != nil && status.Code(err) != codes.ResourceExhausted && status.Code(err) != codes.DeadlineExceeded && status.Code(err) != codes.Canceled {
+					select {
+					case failures <- err:
+					default:
+					}
+					return
+				}
+				if err == nil && response.Count != 0 {
+					select {
+					case failures <- fmt.Errorf("warmup index is not empty: %d", response.Count):
+					default:
+					}
+					return
+				}
+				time.Sleep(2 * time.Millisecond)
+			}
+		})
+	}
+	target := min(4, defaultInt(opts.storeConcurrent, 64))
+	for {
+		select {
+		case err := <-failures:
+			t.Fatalf("steady-state fixture traffic: %v", err)
+		default:
+		}
+		if memoryMetricTotal(storeMetrics(t, server), "sink_store_concurrency_limit") >= float64(target) {
+			return
+		}
+		if ctx.Err() != nil {
+			t.Fatal("real Count traffic did not establish the steady-state fixture window")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}

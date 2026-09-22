@@ -51,8 +51,19 @@ func testMemoryDirectBursts(t *testing.T) {
 			for range 8 {
 				burst = append(burst, countAsync(t.Context(), server.client, req))
 			}
+			completed, rejected := 0, 0
 			for _, call := range burst {
-				counted(t, call)
+				result := <-call
+				if status.Code(result.err) == codes.ResourceExhausted {
+					rejected++
+				} else if result.err == nil && result.response.Count == 1 && !result.response.Estimated {
+					completed++
+				} else {
+					t.Fatalf("independent Count: %+v %v", result.response, result.err)
+				}
+			}
+			if completed == 0 {
+				t.Fatal("independent work failed despite the warmed Store window")
 			}
 			used := memoryMetricTotal(server.metricSnapshot(t), "sink_memory_used_bytes")
 			if used <= 0 {
@@ -63,6 +74,9 @@ func testMemoryDirectBursts(t *testing.T) {
 			counted(t, countAsync(t.Context(), server.client, healthy))
 			gate.open()
 			counted(t, busy)
+			for range rejected {
+				counted(t, countAsync(t.Context(), server.client, req))
+			}
 			server.waitIdle(t)
 		})
 	}

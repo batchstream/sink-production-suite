@@ -52,6 +52,8 @@ func searchBackends(t *testing.T) []backend {
 }
 
 type serverOptions struct {
+	storeConcurrent int
+	coldStore       bool
 	logging         string
 	role            string
 	store           string
@@ -217,6 +219,9 @@ func startCandidate(t *testing.T, opts serverOptions) *candidate {
 		server.client = gateway.client
 		server.engineAddress = server.address
 		server.address = gateway.address
+		if !opts.coldStore {
+			warmStoreTraffic(t, server, opts)
+		}
 	}
 	return server
 }

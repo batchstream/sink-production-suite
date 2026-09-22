@@ -64,6 +64,9 @@ a temporary module file that replaces Sink with `SINK_SERVER_DIR`; neither
 repository's module files are rewritten. The build output is
 `.reports/bin/sink-perf`.
 
+The [Store backpressure gates](../docs/store-backpressure.md) cover shared Native
+admission over RPC and real-process/backend congestion recovery.
+
 ## Gates and evidence
 
 `test-candidate` requires the original named regressions, records `local.out`
