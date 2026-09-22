@@ -126,6 +126,10 @@ func testMemoryStoreSaturation(t *testing.T, rounds int) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// Establish the healthy Store's field mapping before measuring
+			// independent progress under saturation.
+			seed := put(t, healthy, `{"counter":0}`, sink.WriteUpsert)
+			applied(t, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, seed), 1)
 			baseline := server.metricSnapshot(t)
 			for round := range rounds {
 				gate := proxy.hold("/"+index+"/_search", "match_all", 1)

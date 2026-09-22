@@ -266,10 +266,16 @@ func TestWorkerRetainsStorageFailures(t *testing.T) {
 						settled += 2
 						broker.waitCommitted(t, topic, settled)
 						assertCounter(t, publisher.client, address, 2)
-						accepted(t, publisher.client, merge(t, address, increment))
-						settled++
-						broker.waitCommitted(t, topic, settled)
-						assertCounter(t, publisher.client, address, 3)
+						// Establish sustained recovery before injecting the next fault.
+						// Batched recovery writes may produce only one healthy Store
+						// observation; settle each follow-up separately so cooldown
+						// escalation does not carry across independent fault cases.
+						for counter := 3; counter <= 6; counter++ {
+							accepted(t, publisher.client, merge(t, address, increment))
+							settled++
+							broker.waitCommitted(t, topic, settled)
+							assertCounter(t, publisher.client, address, counter)
+						}
 						broker.assertEnd(t, topic+".dlq", 0)
 					})
 					if !passed {
