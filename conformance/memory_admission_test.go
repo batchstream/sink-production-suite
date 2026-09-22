@@ -145,9 +145,8 @@ func testMemoryStoreSaturation(t *testing.T, rounds int) {
 					operation := put(t, address, payload, sink.WriteUpsert)
 					calls = append(calls, writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, operation))
 				}
-				for _, call := range calls {
-					applied(t, call, 1)
-				}
+				// The slow Store may retain these writes when its window shrinks.
+				// Independent Store progress must not depend on draining that backlog.
 				for sample := range 8 {
 					call, stop := context.WithTimeout(t.Context(), time.Second)
 					operation := put(t, healthy, fmt.Sprintf(`{"counter":%d}`, sample), sink.WriteUpsert)
@@ -158,8 +157,11 @@ func testMemoryStoreSaturation(t *testing.T, rounds int) {
 				if result := <-busy; status.Code(result.err) != codes.Canceled {
 					t.Fatalf("held request cancellation: %+v", result)
 				}
-				server.waitIdle(t)
 				gate.open()
+				for _, call := range calls {
+					applied(t, call, 1)
+				}
+				server.waitIdle(t)
 				for _, address := range written {
 					readRequest := sink.ReadRequest{
 						Addresses: []sink.Address{address},

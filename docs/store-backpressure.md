@@ -21,7 +21,9 @@ accept explicit admission rejection and verify recovery instead of assuming
 unlimited Native concurrency. The new backpressure cases select `coldStore` and
 start with an untrained controller, including the shared single-slot scenario.
 No controller state is overridden and health probes do not train the window.
-Deadline tests distinguish a released execution slot from legitimate cooldown.
+Cross-Store isolation is checked while the slow Store may retain a write backlog;
+that backlog must drain after the held request is released. Deadline tests
+distinguish a released execution slot from legitimate cooldown.
 The storage-failure matrix uses one attempt per fixture retry round and observes
 three failures across rounds, preserving offset/DLQ assertions without demanding
 22 rapid attempts through congestion backoff. Production defaults are unchanged.
