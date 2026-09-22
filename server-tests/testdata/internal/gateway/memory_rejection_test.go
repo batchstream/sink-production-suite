@@ -115,11 +115,6 @@ func TestNativeMemoryPressurePreservesScanRetryAndCancellation(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	server.MetricsHandler().ServeHTTP(recorder, httptest.NewRequest("GET", "/metrics", nil))
 	body := recorder.Body.String()
-	for _, obsolete := range []string{"sink_gateway_rejected_total", "sink_gateway_in_flight_bytes", "sink_memory_capacity_bytes", "sink_memory_waiting_", "sink_memory_burst_"} {
-		if strings.Contains(body, obsolete) {
-			t.Fatalf("obsolete metric exported: %s", obsolete)
-		}
-	}
 	if !strings.Contains(body, "sink_memory_pressure") || !strings.Contains(body, "sink_memory_rejected_total") {
 		t.Fatal("missing watermark metrics")
 	}

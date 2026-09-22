@@ -212,7 +212,7 @@ func testMemoryPublisherStall(t *testing.T) {
 			for _, call := range pending {
 				select {
 				case result := <-call:
-					t.Fatalf("publisher returned without broker acknowledgement or obeyed obsolete count cap: %+v", result)
+					t.Fatalf("publisher completed before broker acknowledgement: %+v", result)
 				default:
 				}
 			}
