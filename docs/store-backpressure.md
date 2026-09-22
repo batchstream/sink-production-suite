@@ -14,7 +14,9 @@ controller state. The existing workflow runs both OpenSearch 2.17 and 3.8.
 | `TestNativeTransportSharesStoreAdmission` | The candidate overlay verifies Execute, Count, Query and Scan admission errors through real gRPC serialization, including streaming terminal errors, then validates successful recovery and unchanged native replies. |
 
 Existing incident schedules use real Count traffic on a separate empty index to
-establish four execution slots before holding a backend request. Burst tests
+establish four execution slots before holding a backend request. Warmup uses
+four callers and backs off admission rejection, avoiding an RPC rejection storm
+on shared CI runners. Burst tests
 accept explicit admission rejection and verify recovery instead of assuming
 unlimited Native concurrency. The new backpressure cases select `coldStore` and
 start with an untrained controller, including the shared single-slot scenario.
@@ -28,6 +30,8 @@ Run `make test-candidate` for component/transport checks and `make test-conforma
 for the real-process/backend scenarios. Both scripts require the named tests in
 JSON test events, so missing or skipped scenarios fail qualification. The
 combined service coverage floor remains 91%; the controller has an 85% floor.
+The expanded real-process conformance matrix has a 40-minute test deadline;
+CI jobs allow 60 minutes for builds, backend startup and evidence collection.
 
 The conformance artifacts contain the exact candidate/suite revisions, test
 JSON, process configurations and logs. Test output records completed work,

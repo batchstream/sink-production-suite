@@ -319,7 +319,8 @@ func TestNativeScanDeadlinesReleaseResources(t *testing.T) {
 			defer cancel()
 			page, err := server.client.Scan(ctx, req)
 			gate.wait(t)
-			if status.Code(err) != codes.DeadlineExceeded || ctx.Err() == nil || len(page.Documents) != 0 || len(page.NextCursor) != 0 {
+			// The propagated server deadline can expire before the client timer fires.
+			if status.Code(err) != codes.DeadlineExceeded || len(page.Documents) != 0 || len(page.NextCursor) != 0 {
 				t.Fatalf("caller deadline: page=%+v client=%v error=%v", page, ctx.Err(), err)
 			}
 			assertNoSearchCursors(t, store, index)

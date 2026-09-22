@@ -5,13 +5,14 @@ package conformance_test
 import (
 	"context"
 	"fmt"
+	"sync"
+	"testing"
+	"time"
+
 	sink "github.com/batchstream/sink-go"
 	"github.com/batchstream/sink-production-suite/internal/testuri"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"sync"
-	"testing"
-	"time"
 )
 
 // Existing fault schedules require spare execution slots before holding a call.
@@ -33,7 +34,9 @@ func warmStoreTraffic(t *testing.T, server *candidate, opts serverOptions) {
 	var workers sync.WaitGroup
 	defer func() { close(stop); workers.Wait() }()
 	failures := make(chan error, 1)
-	for range 32 {
+	// Match the required window; excess callers only load the RPC rejection path.
+	target := min(4, defaultInt(opts.storeConcurrent, 64))
+	for range target {
 		workers.Go(func() {
 			for {
 				select {
@@ -58,22 +61,28 @@ func warmStoreTraffic(t *testing.T, server *candidate, opts serverOptions) {
 					}
 					return
 				}
-				time.Sleep(2 * time.Millisecond)
+				if err != nil {
+					time.Sleep(20 * time.Millisecond)
+				} else {
+					time.Sleep(2 * time.Millisecond)
+				}
 			}
 		})
 	}
-	target := min(4, defaultInt(opts.storeConcurrent, 64))
 	for {
 		select {
 		case err := <-failures:
 			t.Fatalf("steady-state fixture traffic: %v", err)
 		default:
 		}
-		if memoryMetricTotal(storeMetrics(t, server), "sink_store_concurrency_limit") >= float64(target) {
+		metrics := storeMetrics(t, server)
+		if memoryMetricTotal(metrics, "sink_store_concurrency_limit") >= float64(target) {
 			return
 		}
 		if ctx.Err() != nil {
-			t.Fatal("real Count traffic did not establish the steady-state fixture window")
+			t.Fatalf("real Count traffic did not establish the steady-state fixture window: limit=%g increases=%g latency_cuts=%g overloads=%g",
+				memoryMetricTotal(metrics, "sink_store_concurrency_limit"),
+				windowChanges(metrics, "engine", "increase"), windowChanges(metrics, "engine", "latency"), windowChanges(metrics, "engine", "overload"))
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
