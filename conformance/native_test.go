@@ -324,9 +324,20 @@ func TestNativeScanDeadlinesReleaseResources(t *testing.T) {
 			}
 			assertNoSearchCursors(t, store, index)
 			count := sink.CountRequest{Command: command}
-			result, err := server.client.Count(t.Context(), count)
+			// A real backend deadline may legitimately close the Store window.
+			// First prove resource release, then retry only admission rejection.
+			waitStore(t, server, func(m map[string]float64) bool {
+				return memoryMetricTotal(m, "sink_store_executions_in_flight") == 0
+			})
+			recovery, stop := context.WithTimeout(t.Context(), 5*time.Second)
+			defer stop()
+			result, err := server.client.Count(recovery, count)
+			for status.Code(err) == codes.ResourceExhausted && recovery.Err() == nil {
+				time.Sleep(20 * time.Millisecond)
+				result, err = server.client.Count(recovery, count)
+			}
 			if err != nil || result.Count != 1 {
-				t.Fatalf("deadline retained resources: %+v %v", result, err)
+				t.Fatalf("deadline retained resources or failed recovery: %+v %v", result, err)
 			}
 		})
 	}

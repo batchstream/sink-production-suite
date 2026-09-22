@@ -53,6 +53,7 @@ func searchBackends(t *testing.T) []backend {
 
 type serverOptions struct {
 	storeConcurrent int
+	workerAttempts  int
 	coldStore       bool
 	logging         string
 	role            string

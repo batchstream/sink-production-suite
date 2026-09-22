@@ -178,6 +178,20 @@ func TestStoreBackpressureKeepsSharedAdmissionBounded(t *testing.T) {
 			if err != nil || response.Count != 2 {
 				t.Fatalf("recovered Native count: %+v %v", response, err)
 			}
+			beforeSemantic := storeMetrics(t, server)
+			duplicate := put(t, addressFor(t, index, "seed"), `{"counter":99}`, sink.WriteCreate)
+			duplicateResult := <-writeAsync(t.Context(), server.client, sink.CompletionWaitUntilApplied, duplicate)
+			if duplicateResult.err != nil || len(duplicateResult.results) != 1 || duplicateResult.results[0].Status != sink.WritePreconditionFailed {
+				t.Fatalf("CREATE precondition changed: %+v", duplicateResult)
+			}
+			count.Command.Payload = []byte(`{"query":`)
+			if _, err := server.client.Count(t.Context(), count); status.Code(err) != codes.InvalidArgument {
+				t.Fatalf("invalid query classification changed: %v", err)
+			}
+			afterSemantic := storeMetrics(t, server)
+			if windowChanges(afterSemantic, "engine", "overload") != windowChanges(beforeSemantic, "engine", "overload") || memoryMetricTotal(afterSemantic, "sink_store_concurrency_limit") != 1 {
+				t.Fatal("semantic failures were treated as congestion")
+			}
 		})
 	}
 }

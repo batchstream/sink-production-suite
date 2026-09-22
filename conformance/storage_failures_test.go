@@ -205,6 +205,7 @@ func TestWorkerRetainsStorageFailures(t *testing.T) {
 			opts := serverOptions{backend: store, broker: broker.address, topic: topic}
 			publisher := startCandidate(t, opts)
 			opts.backend, opts.worker = proxy.backend, true
+			opts.workerAttempts = 1
 			startCandidate(t, opts)
 			var settled int64
 			for _, fault := range failures {
@@ -234,11 +235,13 @@ func TestWorkerRetainsStorageFailures(t *testing.T) {
 						}
 						accepted(t, publisher.client, put(t, address, `{"counter":2}`, sink.WriteUpsert))
 						broker.assertEnd(t, topic, settled+2)
-						// More than two default ten-attempt retry rounds must occur.
-						// The conformance fixture uses 10..100ms backoff; sustained
-						// qualification separately retains production retry timings.
+						// Cross more than two complete retry rounds. One attempt per
+						// fixture round exercises rewind/offset retention without
+						// requiring rapid retries through adaptive Store cooldown.
+						// Production retry defaults remain covered by component and
+						// sustained qualification runs.
 						deadline := time.Now().Add(10 * time.Second)
-						for proxy.seen.Load() < 22 {
+						for proxy.seen.Load() < 3 {
 							if end := broker.endOffset(t, topic+".dlq"); end != 0 {
 								t.Fatalf("dependency failure moved records to DLQ: end=%d case=%s", end, t.Name())
 							}
