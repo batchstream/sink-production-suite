@@ -25,8 +25,7 @@ load tests when comparing results. Process memory watermarks do not guarantee
 that an admitted workload cannot exhaust memory.
 
 These role allocations satisfy the startup minimum with the fixture's 4 MiB
-send limit. Historical runs used 256 MiB for Gateway and 768 MiB for Engine;
-preserve the recorded allocations when comparing those results.
+send limit. Keep the role allocations fixed when comparing revisions.
 
 The matrix measures 1 KiB upserts across 16/32/64/128 concurrent callers,
 16-operation batches, merges, mixed reads/writes, Read and Count, 64 KiB returned
@@ -58,10 +57,9 @@ Set `SINK_PERF_ENGINE_CONFIG` or `SINK_PERF_GATEWAY_CONFIG` to absolute paths to
 compare configuration choices with the same images and container limits. Retain that configuration
 with the results; a shorter batching wait can reduce latency while increasing
 backend calls, so measure both small RPCs and explicit batches before tuning.
-The ordinary Engine fixture inherits the candidate's batch-size default (32
-starting with the role-configuration redesign). Historical runs used their
-recorded candidate defaults, so preserve an explicit `batching.max_operations`
-when isolating a code change from a configuration change.
+The ordinary Engine fixture inherits the candidate's batch-size default (32).
+Set an explicit `batching.max_operations` when isolating a code change from a
+configuration change.
 The provided `engine-low-latency.yaml` changes only the batching wait to 500µs:
 
 ```sh
@@ -73,9 +71,8 @@ The `read-budgets` profile repeats mixed traffic, batched reads and large return
 documents. The supplied pair lowers `grpc.max_send_message_bytes` from 4 MiB to
 1 MiB in both roles, reducing the largest response they can serve. The current
 process memory guard observes memory use and checks a startup minimum; lowering
-the transport ceiling also lowers that minimum. The older response-reservation
-results do not apply unchanged. Validate real response
-sizes and measure the current candidate before selecting a smaller transport limit:
+the transport ceiling also lowers that minimum. Validate real response sizes
+and measure the candidate before selecting a smaller transport limit:
 
 ```sh
 SINK_PERF_ENGINE_CONFIG="$PWD/benchmarks/qualification/engine-small-responses.yaml" \

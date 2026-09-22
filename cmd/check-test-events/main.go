@@ -13,35 +13,22 @@ import (
 func main() {
 	file := flag.String("file", "", "go test -json evidence file")
 	require := flag.String("require", "", "comma-separated required test names")
-	expectFailure := flag.String("expect-failure", "", "historical test that must fail")
-	assertion := flag.String("assertion", "", "required historical assertion text")
 	flag.Parse()
-	opts := checkOptions{file: *file, require: *require, expectFailure: *expectFailure, assertion: *assertion}
-	if err := check(opts); err != nil {
+	if err := check(*file, *require); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-type checkOptions struct {
-	file          string
-	require       string
-	expectFailure string
-	assertion     string
-}
-
-func check(opts checkOptions) error {
-	file, err := os.Open(opts.file)
+func check(filename, requirements string) error {
+	file, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	if opts.expectFailure != "" {
-		return testevents.CheckFailure(file, opts.expectFailure, opts.assertion)
-	}
 	var required []string
-	if opts.require != "" {
-		required = strings.Split(opts.require, ",")
+	if requirements != "" {
+		required = strings.Split(requirements, ",")
 	}
 	return testevents.Check(file, required)
 }

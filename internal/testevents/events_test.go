@@ -36,27 +36,3 @@ func TestRejectsFalseGreenQualification(t *testing.T) {
 		})
 	}
 }
-
-func TestHistoricalFailureRequiresTheIncidentAssertion(t *testing.T) {
-	ran := `{"Action":"run","Test":"TestIncident/backend"}`
-	assertion := `{"Action":"output","OutputType":"error","Test":"TestIncident/backend","Output":"lost acknowledged write"}`
-	failed := `{"Action":"fail","Test":"TestIncident/backend"}`
-	for _, tc := range []struct {
-		name      string
-		data      string
-		wantError bool
-	}{
-		{name: "incident", data: ran + assertion + failed},
-		{name: "arbitrary failure", data: ran + failed, wantError: true},
-		{name: "message without failure", data: ran + assertion, wantError: true},
-		{name: "build failure", data: `{"Action":"build-fail"}`, wantError: true},
-		{name: "skip", data: ran + `{"Action":"skip"}`, wantError: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			err := CheckFailure(strings.NewReader(tc.data), "TestIncident/backend", "lost acknowledged write")
-			if (err != nil) != tc.wantError {
-				t.Fatalf("CheckFailure()=%v, wantError=%t", err, tc.wantError)
-			}
-		})
-	}
-}

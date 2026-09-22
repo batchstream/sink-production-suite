@@ -26,7 +26,10 @@ that backlog must drain after the held request is released. Deadline tests
 distinguish a released execution slot from legitimate cooldown.
 The storage-failure matrix uses one attempt per fixture retry round and observes
 three failures across rounds, preserving offset/DLQ assertions without demanding
-22 rapid attempts through congestion backoff. Production defaults are unchanged.
+22 rapid attempts through congestion backoff. After each fault, four separately
+settled increments verify sustained recovery before the next independent fault,
+so batched recovery writes cannot carry cooldown escalation into that case.
+Production defaults are unchanged.
 
 Run `make test-candidate` for component/transport checks and `make test-conformance`
 for the real-process/backend scenarios. Both scripts require the named tests in

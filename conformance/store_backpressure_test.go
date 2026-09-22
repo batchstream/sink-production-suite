@@ -222,6 +222,7 @@ func startStoreLoad(t *testing.T, servers []*candidate, index string) *storeLoad
 					}
 					ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 					results, err := server.client.Write(ctx, request)
+					timedOut := ctx.Err() == context.DeadlineExceeded
 					cancel()
 					if err == nil && len(results) == 1 && results[0].Status == sink.WriteApplied {
 						load.applied.Add(1)
@@ -230,8 +231,14 @@ func startStoreLoad(t *testing.T, servers []*candidate, index string) *storeLoad
 					if status.Code(err) == codes.ResourceExhausted || status.Code(err) == codes.DeadlineExceeded {
 						continue
 					}
-					if err == nil && len(results) == 1 && results[0].Failure != nil && results[0].Failure.Retryable {
-						continue
+					if err == nil && len(results) == 1 && results[0].Failure != nil {
+						failure := results[0].Failure
+						// A deadline can arrive as a per-operation unknown outcome.
+						// This load uses idempotent upserts, so a fresh iteration is safe;
+						// unknown outcomes must not count as acknowledged writes.
+						if failure.Retryable || timedOut && failure.Code == sink.FailureDeadlineExceeded {
+							continue
+						}
 					}
 					select {
 					case load.failures <- fmt.Errorf("write returned unexpected result: %v %v", results, err):
@@ -244,6 +251,38 @@ func startStoreLoad(t *testing.T, servers []*candidate, index string) *storeLoad
 	}
 	t.Cleanup(load.close)
 	return load
+}
+
+func TestStoreLoadRecoversAfterRequestDeadline(t *testing.T) {
+	for _, store := range searchBackends(t) {
+		t.Run(store.driver, func(t *testing.T) {
+			index := indexFor(t, store, "-1")
+			proxy := newStorePressureProxy(t, store)
+			proxy.delay.Store(int64(10 * time.Second))
+			opts := serverOptions{backend: proxy.backend, storeConcurrent: 8, coldStore: true, batchOps: 1}
+			server := startCandidate(t, opts)
+			load := startStoreLoad(t, []*candidate{server}, index)
+			waitStore(t, server, func(_ map[string]float64) bool { return proxy.requests.Load() >= 1 })
+			// Every initial request expires before the proxy can forward it.
+			time.Sleep(6 * time.Second)
+			if load.applied.Load() != 0 {
+				t.Fatal("expired requests counted as acknowledged writes")
+			}
+			select {
+			case err := <-load.failures:
+				t.Fatal(err)
+			default:
+			}
+			proxy.delay.Store(0)
+			waitStore(t, server, func(_ map[string]float64) bool { return load.applied.Load() >= 8 })
+			load.close()
+			select {
+			case err := <-load.failures:
+				t.Fatal(err)
+			default:
+			}
+		})
+	}
 }
 
 func TestStoreBackpressureReplicasConvergeAndRecover(t *testing.T) {

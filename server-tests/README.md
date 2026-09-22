@@ -54,8 +54,7 @@ The candidate's production code and remaining unit-test helpers are compiled
 unchanged. Private declarations stay private; nothing is copied into or written
 to the candidate checkout. Canonical paths also support symlinked checkouts.
 The runner rejects files that shadow candidate files, missing packages, and
-non-test production overlays. A candidate from before this migration must use
-its matching older pinned suite.
+non-test production overlays.
 
 The performance tool is a real nested module under `tools/sink-perf`. Its module
 path is beneath `github.com/batchstream/sink` so it can use the candidate's existing
@@ -69,11 +68,10 @@ admission over RPC and real-process/backend congestion recovery.
 
 ## Gates and evidence
 
-`test-candidate` requires the original named regressions, records `local.out`
-and JSON test events, and applies the unchanged combined package floors in
-`.github/candidate-coverage-minimums.json`. Sink separately measures its remaining
-unit tests with its recalibrated unit-only floors. A lower unit-only percentage
-does not relax the combined gate. Backend profiles remain separate; combine
+`test-candidate` requires named regressions, records `local.out` and JSON test
+events, and applies the combined package floors in
+`.github/candidate-coverage-minimums.json`. Sink separately enforces its unit-only
+coverage floors. Both gates must pass. Backend profiles remain separate; combine
 profiles only when they describe the same candidate revision.
 
 `server-qualification.yml` owns the component checks, both OpenSearch versions,
