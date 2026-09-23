@@ -25,9 +25,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/batchstream/sink-go/uri"
+	"github.com/batchstream/sink-protocol/uri"
 
-	sink "github.com/batchstream/sink/gen/sink"
+	sink "github.com/batchstream/sink-protocol/sink/v1"
 	"github.com/batchstream/sink/internal/protocol"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/grpc"

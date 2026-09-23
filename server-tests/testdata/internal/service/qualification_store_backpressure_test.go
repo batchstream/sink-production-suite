@@ -1,7 +1,7 @@
 package service_test
 
 import (
-	sink "github.com/batchstream/sink/gen/sink"
+	sink "github.com/batchstream/sink-protocol/sink/v1"
 	"github.com/batchstream/sink/internal/backpressure"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

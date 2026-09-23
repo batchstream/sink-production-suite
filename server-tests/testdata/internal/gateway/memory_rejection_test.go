@@ -13,8 +13,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	sink "github.com/batchstream/sink-protocol/sink/v1"
 	forward "github.com/batchstream/sink/gen/forward"
-	sink "github.com/batchstream/sink/gen/sink"
 	"github.com/batchstream/sink/internal/capacity"
 	"github.com/batchstream/sink/internal/forwarding"
 	"google.golang.org/grpc"

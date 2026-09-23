@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/batchstream/sink-go/uri"
+	sink "github.com/batchstream/sink-protocol/sink/v1"
+	"github.com/batchstream/sink-protocol/uri"
 	forward "github.com/batchstream/sink/gen/forward"
-	sink "github.com/batchstream/sink/gen/sink"
 	"github.com/batchstream/sink/internal/config"
 	"github.com/batchstream/sink/internal/engine"
 	"github.com/batchstream/sink/internal/merge"

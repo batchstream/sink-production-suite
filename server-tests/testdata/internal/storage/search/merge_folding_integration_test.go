@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"testing"
 
-	sink "github.com/batchstream/sink/gen/sink"
+	sink "github.com/batchstream/sink-protocol/sink/v1"
 	"github.com/batchstream/sink/internal/merge"
 	"github.com/batchstream/sink/internal/service"
 	"github.com/batchstream/sink/internal/storage"

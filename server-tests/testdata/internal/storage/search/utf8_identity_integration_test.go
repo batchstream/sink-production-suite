@@ -11,9 +11,9 @@ import (
 
 	"github.com/batchstream/sink/internal/testuri"
 
-	"github.com/batchstream/sink-go/uri"
+	"github.com/batchstream/sink-protocol/uri"
 
-	sink "github.com/batchstream/sink/gen/sink"
+	sink "github.com/batchstream/sink-protocol/sink/v1"
 	"github.com/batchstream/sink/internal/merge"
 	"github.com/batchstream/sink/internal/protocol"
 	"github.com/batchstream/sink/internal/service"
