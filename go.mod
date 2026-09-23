@@ -3,7 +3,8 @@ module github.com/batchstream/sink-production-suite
 go 1.27.0
 
 require (
-	github.com/batchstream/sink-go v0.10.1-0.20260920213411-182e94733852
+	github.com/batchstream/sink-go v0.10.2-0.20260923124340-a9dd1c414566
+	github.com/batchstream/sink-protocol v0.1.0
 	github.com/iceisfun/golua v1.1.1
 	github.com/twmb/franz-go v1.21.6
 	github.com/twmb/franz-go/pkg/kadm v1.18.0

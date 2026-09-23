@@ -11,7 +11,7 @@ import (
 	"github.com/batchstream/sink/internal/protocol"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
-	sink "github.com/batchstream/sink/gen/sink"
+	sink "github.com/batchstream/sink-protocol/sink/v1"
 	"github.com/batchstream/sink/internal/storage"
 )
 

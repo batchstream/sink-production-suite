@@ -301,10 +301,12 @@ jobs:
           repository: batchstream/sink-go
           path: sink-go
           ref: ${{ steps.sdk.outputs.ref }}
-      - name: Verify protobuf compatibility
+      - name: Verify shared protocol version
         run: |
-          sed 's#github.com/batchstream/sink/gen/sink;sink#github.com/batchstream/sink-go/api/sink/v1;sinkv1#' \
-            sink-server/proto/sink/sink.proto | diff -u - sink-go/proto/sink/sink.proto
+          server_protocol="$(GOWORK=off go -C sink-server list -m -f '{{.Version}}' github.com/batchstream/sink-protocol)"
+          sdk_protocol="$(GOWORK=off go -C sink-go list -m -f '{{.Version}}' github.com/batchstream/sink-protocol)"
+          test -n "${server_protocol}"
+          test "${server_protocol}" = "${sdk_protocol}"
       - name: Verify SDK against isolated Gateway, Engine and Worker
         env:
           SINK_GO_DIR: ${{ github.workspace }}/sink-go

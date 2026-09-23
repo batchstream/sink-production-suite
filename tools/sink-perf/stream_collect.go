@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	sink "github.com/batchstream/sink/gen/sink"
+	sink "github.com/batchstream/sink-protocol/sink/v1"
 	"google.golang.org/grpc"
 	"io"
 	"sort"

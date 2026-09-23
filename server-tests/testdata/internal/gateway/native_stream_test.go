@@ -3,8 +3,8 @@ package gateway
 import (
 	"testing"
 
+	sink "github.com/batchstream/sink-protocol/sink/v1"
 	forward "github.com/batchstream/sink/gen/forward"
-	sink "github.com/batchstream/sink/gen/sink"
 	"github.com/batchstream/sink/internal/forwarding"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

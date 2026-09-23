@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/batchstream/sink-go/uri"
+	"github.com/batchstream/sink-protocol/uri"
 	"github.com/batchstream/sink/internal/testuri"
 
+	sink "github.com/batchstream/sink-protocol/sink/v1"
 	forward "github.com/batchstream/sink/gen/forward"
-	sink "github.com/batchstream/sink/gen/sink"
 	"github.com/batchstream/sink/internal/config"
 	"github.com/batchstream/sink/internal/engine"
 	"github.com/batchstream/sink/internal/forwarding"

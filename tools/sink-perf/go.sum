@@ -1,9 +1,7 @@
-github.com/batchstream/sink v0.19.1-0.20260920221026-996534d5a287 h1:kxLOjpWH/xjQ694E91Fif7hs2+HKG2TItmtTlAhEAHQ=
-github.com/batchstream/sink v0.19.1-0.20260920221026-996534d5a287/go.mod h1:ltquC6p4I1nDGJDzPWEs3j9iGBdj4QdToe5I+h+kHG4=
-github.com/batchstream/sink-go v0.10.1-0.20260920213411-182e94733852 h1:VAkKeLTY0obY2M9whp93ij5pPh8ZsoZGhS8qYqwjLFc=
-github.com/batchstream/sink-go v0.10.1-0.20260920213411-182e94733852/go.mod h1:pm/L1cLjXV6/3cGij6dmXX0tfJzlhrMJmpX5b6bxwzg=
-github.com/batchstream/sink-go v0.10.1 h1:a9EYDoTGZEIwuLWW4+Djmbt91V/6r7+VOBT2B9h0WlU=
-github.com/batchstream/sink-go v0.10.1/go.mod h1:pm/L1cLjXV6/3cGij6dmXX0tfJzlhrMJmpX5b6bxwzg=
+github.com/batchstream/sink v0.20.1-0.20260923131321-9e94aa1c73ce h1:cZdZhDiHACkYJ0HP4OLyYaKJ/+mBNEIX6zMVFCEzt3Q=
+github.com/batchstream/sink v0.20.1-0.20260923131321-9e94aa1c73ce/go.mod h1:OVT9dxi4YdbXO+71us9sggOBu3dlW7M/3qclDo7Y4Fk=
+github.com/batchstream/sink-protocol v0.1.0 h1:tfm+yFrEmbv7CoucNVNeCe8vgr4Ymp3NMRQ2DCltaME=
+github.com/batchstream/sink-protocol v0.1.0/go.mod h1:JSedc6w84ErTS/NbenzD/3V6/bL6LFWUepEZWRrI2JY=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

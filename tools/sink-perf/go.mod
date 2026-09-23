@@ -3,8 +3,8 @@ module github.com/batchstream/sink/qualification/perf
 go 1.27.0
 
 require (
-	github.com/batchstream/sink v0.19.1-0.20260920221026-996534d5a287
-	github.com/batchstream/sink-go v0.10.1
+	github.com/batchstream/sink v0.20.1-0.20260923131321-9e94aa1c73ce
+	github.com/batchstream/sink-protocol v0.1.0
 	go.mongodb.org/mongo-driver/v2 v2.9.1
 	google.golang.org/grpc v1.83.2
 )

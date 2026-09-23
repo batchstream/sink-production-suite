@@ -3,7 +3,7 @@ package gateway
 import (
 	"testing"
 
-	sink "github.com/batchstream/sink/gen/sink"
+	sink "github.com/batchstream/sink-protocol/sink/v1"
 )
 
 func TestRootResourceDoesNotPoisonRecordBatch(t *testing.T) {
