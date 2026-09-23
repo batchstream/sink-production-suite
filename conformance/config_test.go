@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"testing"
 )
 
 // Component and Store are independently parsed YAML documents.
@@ -30,7 +31,7 @@ func candidateConfigs(opts serverOptions, addresses []string) (string, string) {
 		fmt.Fprintf(&component, "request: {max_operations: %d}\nforwarding:\n%s\n", defaultInt(opts.maxOps, 1000), opts.routes)
 		return component.String(), ""
 	}
-	fmt.Fprintf(&component, "execution:\n  store_max_concurrent: %d\n  merge:\n    max_attempts: 50\n    lua: {max_instructions: %d}\n", defaultInt(opts.storeConcurrent, 64), defaultInt(opts.luaInstructions, 1000000))
+	fmt.Fprintf(&component, "execution:\n  merge:\n    max_attempts: 50\n    lua: {max_instructions: %d}\n", defaultInt(opts.luaInstructions, 1000000))
 	if mode == "engine" {
 		fmt.Fprintf(&component, "batching:\n  max_operations: %d\n  max_wait: %dms\n  queue: {max_operations: %d}\n", defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
 	} else {
@@ -45,11 +46,25 @@ func candidateConfigs(opts serverOptions, addresses []string) (string, string) {
 		endpoints = []string{opts.backend.endpoint}
 	}
 	encoded, _ := json.Marshal(endpoints)
-	shared := fmt.Sprintf("name: %s\nstorage: {driver: %s, search: {endpoints: %s}}\n", store, opts.backend.driver, encoded)
+	shared := fmt.Sprintf("name: %s\nmax_concurrent: %d\nstorage: {driver: %s, search: {endpoints: %s}}\n", store, defaultInt(opts.storeConcurrent, 64), opts.backend.driver, encoded)
 	if opts.broker != "" {
 		shared += fmt.Sprintf("kafka:\n  enabled: true\n  brokers: [%q]\n  partitions: 1\n  replication_factor: 1\n  topic: {name: %s}\n  dead_letter: {name: %s.dlq}\n", opts.broker, opts.topic, opts.topic)
 	}
 	return component.String(), shared
+}
+
+func TestCandidateConfigsPlaceConcurrencyInStoreFile(t *testing.T) {
+	opts := serverOptions{
+		storeConcurrent: 8,
+		backend:         backend{driver: "elasticsearch", endpoint: "http://search:9200"},
+	}
+	component, store := candidateConfigs(opts, []string{"127.0.0.1:1", "127.0.0.1:2", "127.0.0.1:3"})
+	if strings.Contains(component, "store_max_concurrent") {
+		t.Fatal("role config still contains the removed setting")
+	}
+	if !strings.Contains(store, "max_concurrent: 8\n") {
+		t.Fatalf("Store config lacks max_concurrent: %s", store)
+	}
 }
 
 func readableByteSize(value int) string {
