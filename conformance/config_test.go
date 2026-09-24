@@ -69,6 +69,12 @@ func TestCandidateConfigsPlaceConcurrencyInStoreFile(t *testing.T) {
 	if !strings.Contains(component, "queue: {max_tasks: 10000}\n") {
 		t.Fatalf("Engine config lacks a default ready-task bound: %s", component)
 	}
+	opts.queued = 12
+	opts.queuedTasks = 7
+	configured, _ := candidateConfigs(opts, []string{"127.0.0.1:1", "127.0.0.1:2", "127.0.0.1:3"})
+	if !strings.Contains(configured, "queue: {max_tasks: 7}\n") || !strings.Contains(configured, "queue: {max_operations: 12}") {
+		t.Fatalf("batch operation and admission task limits were conflated: %s", configured)
+	}
 }
 
 func readableByteSize(value int) string {

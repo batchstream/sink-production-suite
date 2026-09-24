@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,12 +13,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Exercise admission through the real RPC adapter for every Native method,
-// including the streaming terminal error, without weakening response semantics.
 // Verify real gRPC serialization, including streaming terminal errors. A full
 // execution window queues valid work; only a caller deadline ends that wait.
 func TestNativeTransportSharesStoreAdmission(t *testing.T) {
-	opts := backpressure.Options{Store: "primary", Role: "engine", MaxConcurrent: 1}
+	opts := backpressure.Options{Store: "primary", Role: "engine", MaxConcurrent: 1, MaxQueuedTasks: 4, MaxQueuedBytes: 4096}
 	controller, err := backpressure.New(opts)
 	if err != nil {
 		t.Fatal(err)
