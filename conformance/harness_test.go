@@ -67,6 +67,7 @@ type serverOptions struct {
 	broker          string
 	topic           string
 	queued          int
+	queuedTasks     int
 	maxOps          int
 	secondary       *backend
 	luaInstructions int

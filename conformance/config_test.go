@@ -33,6 +33,7 @@ func candidateConfigs(opts serverOptions, addresses []string) (string, string) {
 	}
 	fmt.Fprintf(&component, "execution:\n  merge:\n    max_attempts: 50\n    lua: {max_instructions: %d}\n", defaultInt(opts.luaInstructions, 1000000))
 	if mode == "engine" {
+		fmt.Fprintf(&component, "  queue: {max_tasks: %d}\n", defaultInt(opts.queuedTasks, 10000))
 		fmt.Fprintf(&component, "batching:\n  max_operations: %d\n  max_wait: %dms\n  queue: {max_operations: %d}\n", defaultInt(opts.batchOps, 1000), defaultInt(opts.batchWait, 2), defaultInt(opts.queued, 10000))
 	} else {
 		fmt.Fprintf(&component, "consumer:\n  group_id: %s-workers\n  retry: {max_attempts: %d, backoff: 10ms, max_backoff: 100ms}\n", opts.topic, defaultInt(opts.workerAttempts, 10))
@@ -64,6 +65,9 @@ func TestCandidateConfigsPlaceConcurrencyInStoreFile(t *testing.T) {
 	}
 	if !strings.Contains(store, "max_concurrent: 8\n") {
 		t.Fatalf("Store config lacks max_concurrent: %s", store)
+	}
+	if !strings.Contains(component, "queue: {max_tasks: 10000}\n") {
+		t.Fatalf("Engine config lacks a default ready-task bound: %s", component)
 	}
 }
 

@@ -14,8 +14,10 @@ import (
 
 // Exercise admission through the real RPC adapter for every Native method,
 // including the streaming terminal error, without weakening response semantics.
+// Verify real gRPC serialization, including streaming terminal errors. A full
+// execution window queues valid work; only a caller deadline ends that wait.
 func TestNativeTransportSharesStoreAdmission(t *testing.T) {
-	opts := backpressure.Options{Store: "primary", Role: "engine", MaxConcurrent: 1, MaxQueuedRequests: 2, MaxQueuedBytes: 4096}
+	opts := backpressure.Options{Store: "primary", Role: "engine", MaxConcurrent: 1}
 	controller, err := backpressure.New(opts)
 	if err != nil {
 		t.Fatal(err)
@@ -26,70 +28,89 @@ func TestNativeTransportSharesStoreAdmission(t *testing.T) {
 	}
 	defer permit.Release()
 	client, _ := nativeRPCFixture(t, false, controller)
-	execute := nativeSearchRequest()
-	if _, err := client.Execute(t.Context(), execute); status.Code(err) != codes.ResourceExhausted {
-		t.Fatalf("Execute admission: %v", err)
+	methods := []string{"Execute", "Count", "Query", "Scan"}
+	for _, method := range methods {
+		t.Run(method+"/deadline", func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+			defer cancel()
+			if err := callNativeAdmission(ctx, client, method); status.Code(err) != codes.DeadlineExceeded {
+				t.Fatalf("full window must wait for the caller deadline, not reject: %v", err)
+			}
+		})
 	}
-	count := &sink.CountRequest{Command: execute.Command}
-	query := &sink.QueryRequest{Command: execute.Command, PageSize: 1}
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	results := make(chan error, 2)
-	go func() { _, err := client.Count(ctx, count); results <- err }()
-	go func() { _, err := collectQuery(ctx, client, query); results <- err }()
 	registry := prometheus.NewPedanticRegistry()
 	if err := registry.Register(controller); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		select {
-		case err := <-results:
-			t.Fatalf("healthy Query/Count did not wait for shared capacity: %v", err)
-		default:
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	results := make(chan error, len(methods))
+	for _, method := range methods {
+		go func() { results <- callNativeAdmission(ctx, client, method) }()
+	}
+	waitAdmissionTasks(t, registry, len(methods))
+	permit.Release()
+	for range methods {
+		if err := <-results; err != nil {
+			t.Fatalf("queued Native call did not recover with its original response semantics: %v", err)
 		}
+	}
+	waitAdmissionTasks(t, registry, 0)
+}
+
+func callNativeAdmission(ctx context.Context, client sink.SinkClient, method string) error {
+	execute := nativeSearchRequest()
+	switch method {
+	case "Execute":
+		response, err := client.Execute(ctx, execute)
+		if err != nil {
+			return err
+		}
+		if response.GetStatusCode() != 400 {
+			return fmt.Errorf("Execute response changed: %v", response)
+		}
+	case "Count":
+		request := &sink.CountRequest{Command: execute.Command}
+		response, err := client.Count(ctx, request)
+		if err != nil {
+			return err
+		}
+		if response.GetCount() != 123 {
+			return fmt.Errorf("Count response changed: %v", response)
+		}
+	case "Query":
+		request := &sink.QueryRequest{Command: execute.Command, PageSize: 1}
+		_, err := collectQuery(ctx, client, request)
+		return err
+	case "Scan":
+		request := &sink.ScanRequest{Command: execute.Command, BatchSize: 1}
+		response, err := collectScan(ctx, client, request)
+		if err != nil {
+			return err
+		}
+		if len(response.GetDocuments()) != 1 {
+			return fmt.Errorf("Scan response changed: %v", response)
+		}
+	default:
+		return fmt.Errorf("unexpected method %s", method)
+	}
+	return nil
+}
+
+func waitAdmissionTasks(t *testing.T, registry *prometheus.Registry, want int) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
 		families, err := registry.Gather()
 		if err != nil {
 			t.Fatal(err)
 		}
-		queued := float64(0)
 		for _, family := range families {
-			if family.GetName() == "sink_store_admission_queued_requests" {
-				queued = family.Metric[0].GetGauge().GetValue()
+			if family.GetName() == "sink_store_admission_queued_tasks" && len(family.Metric) == 1 && family.Metric[0].GetGauge().GetValue() == float64(want) {
+				return
 			}
-		}
-		if queued == 2 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("RPCs never entered the bounded admission FIFO")
 		}
 		time.Sleep(time.Millisecond)
 	}
-	if _, err := client.Count(t.Context(), count); status.Code(err) != codes.ResourceExhausted {
-		t.Fatalf("full read queue admission: %v", err)
-	}
-	cancel()
-	for range 2 {
-		if err := <-results; status.Code(err) != codes.Canceled {
-			t.Fatalf("queued RPC cancellation: %v", err)
-		}
-	}
-	scan := &sink.ScanRequest{Command: execute.Command, BatchSize: 1}
-	if _, err := collectScan(t.Context(), client, scan); status.Code(err) != codes.ResourceExhausted {
-		t.Fatalf("Scan admission: %v", err)
-	}
-	permit.Release()
-	if response, err := client.Count(t.Context(), count); err != nil || response.GetCount() != 123 {
-		t.Fatalf("Count recovery: %v %v", response, err)
-	}
-	if _, err := collectQuery(t.Context(), client, query); err != nil {
-		t.Fatalf("Query recovery: %v", err)
-	}
-	if response, err := collectScan(t.Context(), client, scan); err != nil || len(response.GetDocuments()) != 1 {
-		t.Fatalf("Scan recovery: %v %v", response, err)
-	}
-	if response, err := client.Execute(t.Context(), execute); err != nil || response.GetStatusCode() != 400 {
-		t.Fatalf("Execute semantics: %v %v", response, err)
-	}
+	t.Fatalf("admission task count did not reach %d", want)
 }
