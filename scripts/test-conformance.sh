@@ -97,7 +97,9 @@ required_tests+=',TestPublishingSurvivesSynchronousSaturation,TestSynchronousWri
 required_tests+=',TestLuaBudgetFailuresPreserveStateAndSiblings,TestManagedQueriesCannotMutateDocuments,TestManagedQueryEndpointRecovery,TestQueryLookaheadDoesNotConsumeDocumentBudget'
 required_tests+=',TestDirectBurstsProgressAcrossStores,TestDirectCancellationReleasesBackend,TestReturnedPutsKeepCollectedBatch,TestScanProjectionSurvivesConcurrentCount'
 required_tests+=',TestStoreBackpressureKeepsSharedAdmissionBounded,TestStoreBackpressureReplicasConvergeAndRecover,TestStoreBackpressureWorkerRetainsBacklogAndRecovers'
+required_tests+=',TestReadyStoreAdmitsColdQueryBurst,TestQueryAndCountAdmissionQueueBoundedAndCancelable'
 for backend in elasticsearch opensearch; do
+  required_tests+=",TestReadyStoreAdmitsColdQueryBurst/${backend},TestQueryAndCountAdmissionQueueBoundedAndCancelable/${backend}/Query,TestQueryAndCountAdmissionQueueBoundedAndCancelable/${backend}/Count"
   required_tests+=",TestStoreBackpressureKeepsSharedAdmissionBounded/${backend},TestStoreBackpressureWorkerRetainsBacklogAndRecovers/${backend},TestStoreBackpressureReplicasConvergeAndRecover/${backend}/1,TestStoreBackpressureReplicasConvergeAndRecover/${backend}/4"
   for operation in insert remove sort unpack move concat pack packsize string-unpack pattern unicode cumulative-helper; do
     required_tests+=",TestLuaBudgetFailuresPreserveStateAndSiblings/${backend}/${operation}"

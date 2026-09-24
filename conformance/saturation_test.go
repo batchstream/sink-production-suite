@@ -42,7 +42,7 @@ func (c *candidate) metricSnapshot(t *testing.T) map[string]float64 {
 	selected := make(map[string]float64)
 	for name, value := range metrics {
 		if name == "go_goroutines" || name == "go_memstats_heap_alloc_bytes" ||
-			strings.HasPrefix(name, "sink_memory_") || strings.HasPrefix(name, "sink_in_flight_requests") || strings.HasPrefix(name, "sink_batcher_queued_") {
+			strings.HasPrefix(name, "sink_memory_") || strings.HasPrefix(name, "sink_in_flight_requests") || strings.HasPrefix(name, "sink_batcher_queued_") || strings.HasPrefix(name, "sink_store_admission_queued_") {
 			selected[name] = value
 		}
 	}

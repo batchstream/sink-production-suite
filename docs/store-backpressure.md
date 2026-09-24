@@ -11,16 +11,28 @@ controller state. The existing workflow runs both OpenSearch 2.17 and 3.8.
 | `TestStoreBackpressureKeepsSharedAdmissionBounded` | A held write consumes the shared single-slot window. Eight writes remain queue-charged, excess work is rejected, Native Count cannot bypass the budget, health remains ready, canceled queued writes never reach storage, and resource growth stays bounded. Released work and Native access recover; duplicate CREATE and invalid queries do not close the window. |
 | `TestStoreBackpressureReplicasConvergeAndRecover` | One and four independent Engines grow from actual backend successes, reduce their windows after injected latency, enter zero-window cooldown after repeated 429s, resume with two shared backend slots, and regain concurrency after the restriction is removed. Persisted records from every writer are verified. |
 | `TestStoreBackpressureWorkerRetainsBacklogAndRecovers` | A real Kafka broker retains 32 accepted increments while Worker observes overload and enters cooldown. Offsets do not advance during rejection; after recovery they drain to 32, the stored counter is exactly 32, and the DLQ stays empty. |
-| `TestNativeTransportSharesStoreAdmission` | The candidate overlay verifies Execute, Count, Query and Scan admission errors through real gRPC serialization, including streaming terminal errors, then validates successful recovery and unchanged native replies. |
+| `TestNativeTransportSharesStoreAdmission` | The candidate overlay verifies that Count/Query wait and cancel through real gRPC serialization, while queue overflow and Execute/Scan fail fast, then validates successful recovery and unchanged native replies. |
+| `TestReadyStoreAdmitsColdQueryBurst` | An untrained Engine must advertise at least four usable slots (within its configured ceiling) before readiness. A 64-call Query/Count burst runs with SDK retries disabled and must complete against each real backend without admission rejection or hidden warmup. |
+| `TestQueryAndCountAdmissionQueueBoundedAndCancelable` | A held Count occupies the only Store permit. Three read callers wait, a full queue rejects without adding waiters, caller cancellation and deadlines free queue bytes/count without backend execution, and the remaining request executes exactly once after release. |
 
 Existing incident schedules use real Count traffic on a separate empty index to
 establish four execution slots before holding a backend request. Warmup uses
 four callers and backs off admission rejection, avoiding an RPC rejection storm
-on shared CI runners. Burst tests
-accept explicit admission rejection and verify recovery instead of assuming
-unlimited Native concurrency. The new backpressure cases select `coldStore` and
-start with an untrained controller, including the shared single-slot scenario.
+on shared CI runners. Cold Query/Count burst tests explicitly select `coldStore`
+and require no admission failures under their configured queue bounds. Actual
+overflow tests still require explicit rejection; they do not assume unlimited
+Native concurrency. Execute/Scan retain their fail-fast behavior. The shared
+single-slot test requires Count to wait and honor caller cancellation rather
+than treating a healthy busy window as overload.
 No controller state is overridden and health probes do not train the window.
+
+The local candidate gate additionally requires deterministic virtual-time tests
+for an hour-long admission wait without a server-added timeout, original caller
+deadlines, byte/count bounds, FIFO head/middle/tail cancellation, permit cleanup,
+healthy growth driven by queued demand, real-overload cooldown, and concurrent
+release/cancellation under the race detector. Startup still runs the 1/8/100
+instance shared-backend simulation; improving cold readiness must not weaken its
+startup-overshoot and recovery assertions.
 Cross-Store isolation is checked while the slow Store may retain a write backlog;
 that backlog must drain after the held request is released. Deadline tests
 distinguish a released execution slot from legitimate cooldown.
