@@ -145,8 +145,15 @@ func TestStoreBackpressureKeepsSharedAdmissionBounded(t *testing.T) {
 				}
 			}
 			count := sink.CountRequest{Command: nativeSearch(index)}
-			if _, err := server.client.Count(t.Context(), count); status.Code(err) != codes.ResourceExhausted {
-				t.Fatalf("Native bypassed shared budget: %v", err)
+			countContext, cancelCount := context.WithCancel(t.Context())
+			defer cancelCount()
+			pendingCount := countAsync(countContext, server.client, count)
+			waitStore(t, server, func(m map[string]float64) bool {
+				return memoryMetricTotal(m, "sink_store_admission_queued_requests") == 1
+			})
+			cancelCount()
+			if result := <-pendingCount; status.Code(result.err) != codes.Canceled {
+				t.Fatalf("queued Count did not honor caller cancellation: %v", result.err)
 			}
 			metrics := storeMetrics(t, server)
 			if memoryMetricTotal(metrics, "sink_store_executions_in_flight") != 1 || metrics["go_goroutines"] > baseline["go_goroutines"]+80 || metrics["go_memstats_heap_alloc_bytes"] > baseline["go_memstats_heap_alloc_bytes"]+64<<20 {
