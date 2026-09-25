@@ -240,7 +240,9 @@ func TestWorkerRetainsStorageFailures(t *testing.T) {
 						// requiring rapid retries through adaptive Store cooldown.
 						// Production retry defaults remain covered by component and
 						// sustained qualification runs.
-						deadline := time.Now().Add(10 * time.Second)
+						// Two Store cooldowns can each last up to 15s with jitter.
+						// Assert eventual replay, not a fixed retry cadence.
+						deadline := time.Now().Add(45 * time.Second)
 						for proxy.seen.Load() < 3 {
 							if end := broker.endOffset(t, topic+".dlq"); end != 0 {
 								t.Fatalf("dependency failure moved records to DLQ: end=%d case=%s", end, t.Name())
@@ -251,7 +253,7 @@ func TestWorkerRetainsStorageFailures(t *testing.T) {
 							if time.Now().After(deadline) {
 								t.Fatalf("dependency failure stopped being retried: attempts=%d", proxy.seen.Load())
 							}
-							time.Sleep(20 * time.Millisecond)
+							time.Sleep(100 * time.Millisecond)
 						}
 						assertCounter(t, publisher.client, address, 7)
 						broker.assertEnd(t, topic+".dlq", 0)
