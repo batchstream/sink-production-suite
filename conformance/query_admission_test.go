@@ -44,7 +44,7 @@ func TestReadyStoreAdmitsColdQueryBurst(t *testing.T) {
 	for _, store := range searchBackends(t) {
 		t.Run(store.driver, func(t *testing.T) {
 			index := indexFor(t, store, "-1")
-			opts := serverOptions{backend: store, storeConcurrent: 16, coldStore: true, batchOps: 1, queued: 128}
+			opts := serverOptions{backend: store, storeConcurrent: 16, coldStore: true, batchOps: 1, queued: 128, queuedTasks: 128}
 			server := startCandidate(t, opts)
 			metrics := storeMetrics(t, server)
 			if window := memoryMetricTotal(metrics, "sink_store_concurrency_limit"); window < 4 || window > 16 {
@@ -97,7 +97,7 @@ func TestQueryAndCountAdmissionQueueBoundedAndCancelable(t *testing.T) {
 			t.Run(store.driver+"/"+method, func(t *testing.T) {
 				index := indexFor(t, store, "-1")
 				proxy := proxyBackend(t, store)
-				opts := serverOptions{backend: proxy.backend, storeConcurrent: 1, batchOps: 1, queued: 3}
+				opts := serverOptions{backend: proxy.backend, storeConcurrent: 1, batchOps: 1, queued: 3, queuedTasks: 3}
 				server := startCandidate(t, opts)
 				gate := proxy.hold("/"+index+"/_search", "match_all", 1)
 				t.Cleanup(gate.open)
@@ -118,7 +118,7 @@ func TestQueryAndCountAdmissionQueueBoundedAndCancelable(t *testing.T) {
 							t.Fatalf("read was rejected instead of waiting for healthy capacity: %v", err)
 						default:
 						}
-						return memoryMetricTotal(metrics, "sink_store_admission_queued_requests") == float64(i+1)
+						return memoryMetricTotal(metrics, "sink_store_admission_queued_tasks") == float64(i+1)
 					})
 				}
 				for _, result := range waiting {
@@ -147,7 +147,7 @@ func TestQueryAndCountAdmissionQueueBoundedAndCancelable(t *testing.T) {
 					}
 				}
 				waitStore(t, server, func(metrics map[string]float64) bool {
-					return memoryMetricTotal(metrics, "sink_store_admission_queued_requests") == 1
+					return memoryMetricTotal(metrics, "sink_store_admission_queued_tasks") == 1
 				})
 				deadline, stop := context.WithTimeout(t.Context(), 500*time.Millisecond)
 				defer stop()
@@ -155,13 +155,13 @@ func TestQueryAndCountAdmissionQueueBoundedAndCancelable(t *testing.T) {
 				command.Payload = []byte(`{"query":{"term":{"queue_marker":"deadline"}}}`)
 				expired := nativeReadAsync(deadline, server.client, method, command)
 				waitStore(t, server, func(metrics map[string]float64) bool {
-					return memoryMetricTotal(metrics, "sink_store_admission_queued_requests") == 2
+					return memoryMetricTotal(metrics, "sink_store_admission_queued_tasks") == 2
 				})
 				if err := <-expired; status.Code(err) != codes.DeadlineExceeded {
 					t.Fatalf("caller deadline was replaced: %v", err)
 				}
 				waitStore(t, server, func(metrics map[string]float64) bool {
-					return memoryMetricTotal(metrics, "sink_store_admission_queued_requests") == 1
+					return memoryMetricTotal(metrics, "sink_store_admission_queued_tasks") == 1
 				})
 				gate.open()
 				for _, result := range []<-chan error{held, waiting[2]} {
