@@ -6,7 +6,7 @@ require (
 	github.com/batchstream/sink v0.20.1-0.20260923131321-9e94aa1c73ce
 	github.com/batchstream/sink-protocol v0.1.0
 	go.mongodb.org/mongo-driver/v2 v2.9.1
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 )
 
 require (
