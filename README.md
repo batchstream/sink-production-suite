@@ -36,7 +36,7 @@ temporary outages must leave no DLQ records; a separate permanent CREATE conflic
 verifies DLQ inspection, repair and replay with the original source position.
 Successful replay does not delete DLQ records. Every business cycle reconciles
 stored state and every consumer group must drain. The two-hour run is reserved
-for scheduled or explicitly requested qualification; a short run does not prove
+for explicitly requested qualification; a short run does not prove
 sustained behavior or multi-node production reliability.
 
 ## Infrastructure
@@ -108,9 +108,10 @@ ordinary conformance allows 30 minutes for the Gateway and Engine lifecycles.
 `SINK_CONFORMANCE_TEST_TIMEOUT` can override that aggregate test timeout without changing request deadlines or
 the two-hour workload duration.
 
-The nightly workflow lives in this repository. Sink can invoke it using the
-pinned reusable workflow and an explicit candidate revision. Standard release
-qualification can be tuned with `SINK_SOAK_DURATION`, `SINK_SOAK_CONCURRENCY`,
+The sustained reliability workflow lives in this repository and runs only when
+manually dispatched or invoked through the pinned reusable workflow with an
+explicit candidate revision. Standard release qualification can be tuned with
+`SINK_SOAK_DURATION`, `SINK_SOAK_CONCURRENCY`,
 `SINK_SOAK_MIN_CYCLES`, and `SINK_SOAK_TEST_TIMEOUT`; the default fault sequence
 needs at least three minutes of scheduled workload.
 
@@ -231,9 +232,9 @@ and a bounded Engine. It elects a different primary during continuous writes,
 pauses both secondaries to remove the majority, requires no successful write
 acknowledgements during a settled outage window, restores quorum and reconciles
 all acknowledged state. The workload uses application sequence IDs to tolerate
-unknown mutation outcomes. Production and nightly reliability qualification include this check after
-the seven-store workload. It does not certify multi-region failures, disk loss
-or backup restoration.
+unknown mutation outcomes. Production and sustained reliability qualification
+include this check after the seven-store workload. It does not certify
+multi-region failures, disk loss or backup restoration.
 
 MongoDB containers explicitly set `GLIBC_TUNABLES=glibc.pthread.rseq=1`, matching
 Sink's quickstart and avoiding the affected TCMalloc per-CPU path on kernels with
