@@ -108,8 +108,8 @@ real backend writes, keeping the addressed record present throughout.
 The live workload checks ten-call histories from three clients and two server
 processes, with default batches and batches restricted to one operation, on
 both search engines. `SINK_STATE_SEED` controls generated operations;
-`SINK_HISTORY_ROUNDS` defaults to 24 and nightly runs use 128. Failed histories
-retain every invocation, response, client ID and operation as JSON. This is
+`SINK_HISTORY_ROUNDS` defaults to 24 and sustained reliability runs use 128.
+Failed histories retain every invocation, response, client ID and operation as JSON. This is
 bounded, single-record, single-operation-RPC linearizability checking; it does not
 establish multi-record atomicity or check arbitrary uncertain, unbounded or async
 histories. Automatic shrinking and coverage-guided server-process fuzzing remain
@@ -121,8 +121,9 @@ before the held request is canceled or the slow Store's backlog is drained.
 After cancellation and backend recovery, every submitted write must be readable
 and execution/queue gauges must drain. Quiescent Go heap growth is limited to
 64 MiB over baseline and goroutine growth to 80 for this fixture.
-`SINK_SATURATION_ROUNDS` defaults to six per backend; nightly runs use 64. These
-sampled thresholds are not strict Lua heap quotas or universal RSS guarantees.
+`SINK_SATURATION_ROUNDS` defaults to six per backend; sustained reliability runs
+use 64. These sampled thresholds are not strict Lua heap quotas or universal
+RSS guarantees.
 
 ## Storage failure classification
 
@@ -185,7 +186,7 @@ worker, stop OpenSearch for 45 seconds and restart Kafka; every third cycle also
 pauses Kafka during the storage outage. Cycles are separated by five minutes.
 The workload must remain alive throughout every fault cycle, followed by business
 reconciliation, drained groups, empty ordinary DLQs and explicit DLQ recovery.
-This long run is reserved for scheduled or explicitly requested qualification.
+This long run is reserved for explicitly requested qualification.
 Routine changes and releases use the shorter single-cycle production gate and
 do not wait for a two-hour run. A short run is not evidence of sustained testing.
 
@@ -212,13 +213,13 @@ source separately before calling a run reproducible from a commit.
 unfinished package/test results in every integration phase, including recovery,
 load, soak and DLQ recovery. The conformance gate is part of integration,
 production and sustained qualification. Server PR CI runs the pinned suite's
-conformance gate against the candidate checkout; release and nightly workflow
-pins must be updated together. `Sink reliability gate` and `Suite reliability
+conformance gate against the candidate checkout; release and sustained reliability
+workflow pins must be updated together. `Sink reliability gate` and `Suite reliability
 gate` run even when prerequisites fail or are skipped and require every
 prerequisite to pass. GitHub rules must require these statuses; adding a job does
 not itself change repository rules. Release binary/image publication requires
-the shorter public production qualification, independently of scheduled or
-explicitly requested sustained testing.
+the shorter public production qualification, independently of explicitly
+requested sustained testing.
 
 To qualify another deployed OpenSearch version with the same assertions:
 
