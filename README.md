@@ -1,5 +1,11 @@
 # Sink production qualification suite
 
+> [!IMPORTANT]
+> **Archived.** Sink has been replaced by [Weir](https://github.com/batchstream/weir),
+> whose independent integration tests and throughput comparisons live in
+> [weir-tests](https://github.com/batchstream/weir-tests). This suite is no longer
+> maintained.
+
 This public repository qualifies [Sink](https://github.com/batchstream/sink) against
 a representative commerce-indexing workload using only synthetic fixtures,
 public dependencies, and disposable local infrastructure. It does not import
