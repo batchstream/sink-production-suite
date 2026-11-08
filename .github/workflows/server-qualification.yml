@@ -120,7 +120,10 @@ jobs:
   mongodb:
     name: MongoDB ReplicaSet integration
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    # mongo:8.0 intermittently exited during startup on ubuntu-latest
+    # (ubuntu-26.04, kernel 7.0); ubuntu-22.04 runs kernel 6.8, outside the
+    # SERVER-125742 range, so it avoids one suspected cause.
+    runs-on: ubuntu-22.04
     env:
       SINK_SERVER_DIR: ${{ github.workspace }}/sink-server
     steps:
